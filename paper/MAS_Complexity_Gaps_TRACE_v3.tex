@@ -1,0 +1,834 @@
+%==============================================================================
+% TRACE-MAS v3: Securing the Inter-Agent Surface in Multi-Agent LLM Systems
+% Author: S. Gentyala
+% Format: IEEEtran (conference, two-column)
+% Compile: pdflatex -> pdflatex
+% GitHub: https://github.com/sunilgentyala/TRACE-MAS
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{remark}{Remark}
+
+\begin{document}
+
+\title{TRACE-MAS: Securing the Inter-Agent Surface Against Cascading Drift,
+Identity Spoofing, Prompt Injection, and Temporal Adversarial Attacks
+in Multi-Agent LLM Pipelines}
+
+\author{%
+\IEEEauthorblockN{Sunil Gentyala}
+\IEEEauthorblockA{%
+\textit{Independent Research, MAS Security and Applied Cryptography}\\
+Email: sugentyala@ieee.org\\
+GitHub: \url{https://github.com/sunilgentyala/TRACE-MAS}}
+}
+
+\maketitle
+
+\begin{abstract}
+Modern AI systems rarely rely on a single model. A coder agent
+drafts a module, a quality-assurance agent reviews it, and a deployment
+agent ships it---three distinct LLMs sharing a common pipeline but
+operating without any formal cross-verification layer. When that pipeline
+is attacked, the consequences are not isolated to one model; they propagate
+invisibly across the entire chain. This paper identifies four structurally
+related failure modes that define the attack surface of such pipelines:
+\emph{cascading alignment drift}, \emph{inter-agent identity spoofing},
+\emph{cross-agent prompt injection}, and \emph{temporal adversarial
+manipulation}. To address all four jointly, we introduce
+\textsc{TRACE-MAS} (\emph{T}ri-vector \emph{R}esilient
+\emph{A}lgorithm for \emph{C}ooperative \emph{E}mbodied Multi-Agent
+Security), a unified theoretical framework grounded in contraction theory,
+zero-knowledge cryptography, and statistical change detection.
+
+\textsc{TRACE-MAS} delivers three provable guarantees. First, a
+verifier-mediated contractive aggregation operator bounds the asymptotic
+drift of any $n$-agent chain to $\Delta_\infty \leq \rho + \lambda\epsilon/(1-\lambda)$,
+independent of chain length. Second, a dynamic zero-knowledge verification
+threshold $\tau_i^{(t)}$ that adapts to the runtime risk of each agent
+bounds the probability that a rogue participant is accepted in any round to
+$2^{-s} + e^{-\tau/\mu}$; the same mechanism rejects messages whose
+content diverges from the agent's declared policy commitment, which is
+the cryptographic footprint of a prompt injection event. Third, a
+sliding-window Kullback--Leibler functional over joint agent memory
+detects slow temporal attacks with a sub-Gaussian miss probability
+$\exp(-T_w(\varphi(B) - \nu)^2 / 2\sigma^2)$.
+Together, the three theorems compose into a single security envelope
+whose failure terms are independently controllable by parameter choice.
+We present full algorithmic pseudocode, an asymptotic cost analysis,
+and a discussion of open engineering challenges in applying the
+framework to production agentic pipelines.
+\end{abstract}
+
+\begin{IEEEkeywords}
+multi-agent systems, alignment drift, zero-knowledge proofs, prompt
+injection, agent-to-agent authentication, temporal adversarial attacks,
+contraction theory, LLM pipeline security.
+\end{IEEEkeywords}
+
+%=============================================================================
+\section{Introduction}
+\label{sec:intro}
+%=============================================================================
+
+The shift from single-model AI to cooperative multi-agent pipelines has
+been one of the defining architectural transitions of the past two years.
+Standardized agent communication protocols such as Google's Agent2Agent
+(A2A), Anthropic's Model Context Protocol, and OpenAI's Swarm framework
+all reflect the same
+engineering judgement: complex tasks are solved better by specialized
+agents coordinating over a shared interface than by a single monolithic
+model trying to do everything. Production deployments now chain together
+coder agents, retrieval agents, QA agents, deployment agents, and
+financial-transaction agents in pipelines that operate with minimal human
+oversight. The throughput is impressive. The attack surface is alarming.
+
+The inter-agent surface---the seams between those specialized agents---is
+the least defended layer of the agentic stack. An agent boundary is not a
+security boundary. When agent $A_1$ hands its output to agent $A_2$, it
+hands over whatever drift, corruption, or injected instruction that output
+carries. $A_2$, lacking the original intent, treats the input as ground
+truth. $A_3$ does the same for $A_2$'s output. This propagation dynamic
+means that a small attack at the front of a pipeline can produce a large
+effect at its end---a property we call \emph{cascading alignment drift}.
+
+Three additional failure modes compound the problem. Platforms that allow
+open-world agent participation---where any service advertising the right
+capability descriptor can join a workflow---face \emph{inter-agent
+identity spoofing}: a rogue agent is admitted, issues commands that
+downstream agents execute in good faith, and exits before anomaly
+detection fires. Separately, the cross-agent analogue of prompt injection
+is now well-documented~\cite{ref:promptinfection2024}: an adversary
+embeds a directive in content processed by $A_1$ that survives intact
+into $A_2$'s context, effectively hijacking a downstream agent's
+reasoning without compromising the upstream one. Finally, patient
+adversaries can engineer \emph{temporal adversarial attacks} that stage
+incremental perturbations whose individual magnitudes remain below any
+single agent's anomaly threshold but whose cumulative effect---integrated
+across the agent's memory horizon---drives the system toward a prepared
+malicious end-state~\cite{ref:agentpoison2024}.
+
+Existing defenses are compartmentalized. Alignment research tackles drift
+in isolation. Cryptographic authentication schemes address identity but
+not intent. Prompt-injection defenses operate at the input layer of a
+single model without awareness of multi-agent propagation dynamics.
+Temporal robustness work in adversarial ML handles single-agent sequential
+decision settings. None of these threads considers all four attack vectors
+jointly, and it is precisely their interaction---drift enabling injection,
+injection enabling spoofing escalation, and staged perturbations exploiting
+the window blindness of each individual defense---that makes the
+inter-agent surface so dangerous.
+
+We close that integration gap. Our contribution is \textsc{TRACE-MAS}
+(\emph{T}ri-vector \emph{R}esilient \emph{A}lgorithm for \emph{C}ooperative
+\emph{E}mbodied Multi-Agent Security), a unified theoretical framework that
+addresses all four failure modes under one composable security envelope.
+The framework's three theorems cover (i) drift decay under contractive
+verifier-mediated aggregation, (ii) spoofing-and-injection acceptance
+bounds via dynamic zero-knowledge verification thresholds, and
+(iii) temporal attack detection via a sliding-window divergence functional.
+The composite failure probability is proven to be independently controllable
+on each dimension.
+
+The remainder of this paper is organized as follows.
+Section~\ref{sec:related} surveys related work on multi-agent reliability,
+cryptographic authentication, prompt injection, and temporal adversarial
+attacks, and isolates the integration gap.
+Section~\ref{sec:framework} develops the mathematical framework:
+system model, the three theorems with proof sketches, and the new subsection
+on LLM-specific injection vectors.
+Section~\ref{sec:algo} presents the unified algorithm.
+Section~\ref{sec:discussion} examines verifier collusion, calibration
+drift, embodied extensions, privacy, and limitations.
+Section~\ref{sec:conclusion} summarizes and outlines a research roadmap.
+
+%=============================================================================
+\section{Related Work and Threat Landscape}
+\label{sec:related}
+%=============================================================================
+
+\subsection{Multi-Agent Reliability and Consensus}
+The recent review of embodied multi-agent systems~\cite{ref:embodied2025}
+consolidates a decade of cooperative-control work and identifies
+cross-agent verification as the most pressing open frontier in the
+field. Resilient consensus tracking under semi-Markovian switching
+topologies~\cite{ref:jas2025consensus} provides one mathematical
+foundation, but assumes correctness of agent identity---an assumption
+this paper explicitly drops. Byzantine fault-tolerant consensus
+protocols~\cite{ref:tc2024pbft} supply the quorum primitive, yet are
+calibrated for closed permissioned networks rather than the capability-
+discovered swarms that characterize modern agentic deployments. The
+privacy-distributed optimization work of~\cite{ref:jas2024priv}
+protects data flows but leaves the intent layer unguarded.
+
+\subsection{Adversarial Attacks in Multi-Agent Settings}
+Grey-box adversarial attacks on communicative multi-agent reinforcement
+learning demonstrate that partial knowledge of policy structure is
+sufficient to craft message-level subversions~\cite{ref:tifs2025grey}.
+Safe multi-agent RL under adversarial communications offers a wireless
+defense but presupposes agent provenance~\cite{ref:tifs2024safe}. The
+contemporary survey of adversarial attacks in ML-empowered communication
+systems~\cite{ref:comst2023} frames the sequential perturbation regime
+that motivates our temporal-window analysis. None of these threads
+addresses the compound attack surface that emerges when drift, spoofing,
+injection, and temporal manipulation occur concurrently.
+
+\subsection{Prompt Injection and Memory Poisoning}
+A qualitatively new class of attack has emerged as LLM agents entered
+production. \emph{Prompt infection}~\cite{ref:promptinfection2024}
+demonstrates that a single injected directive in content processed by
+one agent propagates virally to downstream agents in the same pipeline,
+coordinating them to exfiltrate data or issue unauthorized commands.
+\emph{AgentPoison}~\cite{ref:agentpoison2024} attacks the retrieval
+layer: by poisoning a small fraction of an agent's long-term memory or
+RAG knowledge base, an adversary can redirect behavior with near-perfect
+reliability and minimal impact on benign queries. DataSentinel
+addresses this for single-agent settings via game-theoretic
+minimax detection~\cite{ref:datasentinel2025}, but a multi-agent
+extension does not yet exist. Section~\ref{subsec:injection} shows
+that \textsc{TRACE-MAS}'s ZKP attestation provides exactly that
+extension: a message whose content violates the sending agent's
+declared policy commitment fails verification by construction.
+
+\subsection{Cryptographic Authentication for Agents}
+Zero-knowledge mutual authentication schemes engineered for IoT
+networks~\cite{ref:zpma2024} provide a cryptographic backbone, but
+their identity-only proofs do not cover behavioral commitments.
+Privacy-preserving tool-use harnesses for LLM agents via homomorphic
+encryption~\cite{ref:tdsc2024} protect data without guarding intent.
+Secure agent communication protocols are an active standards concern
+in 2025~\cite{ref:agentsec2025}, with proposals converging on
+OAuth-anchored attestation but lacking provable behavioral soundness.
+\textsc{TRACE-MAS}'s dynamic ZKP threshold generalizes these
+approaches to message-level policy commitments.
+
+\subsection{Multi-Agent Systems for Security Applications}
+The inverse direction---agents acting as defenders rather than as
+attack surfaces---is documented in~\cite{ref:access2025multi}, which
+applies MAS to cybersecurity threat detection and correlation. That
+work motivates why securing the agents themselves is critical: a
+multi-agent defense system whose inter-agent surface is compromised
+is worse than no defense at all.
+
+%=============================================================================
+\section{Mathematical Framework}
+\label{sec:framework}
+%=============================================================================
+
+\subsection{System Model and Notation}
+\label{subsec:model}
+
+Let $\mathcal{A} = \{A_1, A_2, \ldots, A_n\}$ denote a chain or swarm of
+agents executing a workflow $\mathcal{W}$. At round
+$t \in \{1, \ldots, T\}$, agent $A_i$ produces an output
+$h_i^{(t)} \in \mathbb{R}^d$ in a shared embedding space. Let
+$\alpha_i^{(t)}$ denote the canonical aligned representation that
+$A_i$ should produce given the user intent $\alpha_0$. Let $M^{(t)}$
+denote the joint memory of the swarm, and let
+$\mathcal{V} = \{V_1, \ldots, V_k\}$ denote a quorum of independent
+verifier agents producing a reference signal $\xi^{(t)}$.
+
+\begin{definition}[Inter-Agent Surface]
+The inter-agent surface $\mathcal{S}$ is the tuple
+\[
+\mathcal{S} = \bigl(\{h_i^{(t)}\},\ \{\pi_i^{(t)}\},\
+M^{(t)},\ \xi^{(t)}\bigr),
+\]
+where $\pi_i^{(t)}$ is the cryptographic attestation accompanying
+$h_i^{(t)}$.
+\end{definition}
+
+The three core security gaps target three components of $\mathcal{S}$:
+drift attacks corrupt $\{h_i^{(t)}\}$; spoofing attacks forge or omit
+$\{\pi_i^{(t)}\}$; temporal attacks manipulate $M^{(t)}$ over horizons
+longer than any individual agent's anomaly window. Cross-agent prompt
+injection is a specialization of spoofing: the forged element is not
+identity but intent, and the attestation mechanism of
+Section~\ref{subsec:zkp} is the mechanism that catches it.
+
+\subsection{Drift-Decay Bounding Function}
+\label{subsec:drift}
+
+We model alignment drift at handoff $i$ as
+$\delta_i \triangleq \|\alpha_i - \alpha_0\|_2$. In an unprotected
+chain, each agent injects a per-step error $\varepsilon_i$ with
+$\|\varepsilon_i\|_2 \leq \epsilon$, yielding the loose bound
+$\delta_n \leq \delta_0 + n\epsilon$ that grows without bound in
+chain length. We replace pointwise propagation with a verifier-mediated
+contractive aggregation operator $\mathcal{T}$.
+
+\begin{definition}[Verifier-Mediated Aggregation]
+Let $\gamma_i \in [\gamma_{\min}, 1)$ be the verifier weight at step
+$i$, and let the verifier signal $\xi_i$ satisfy
+$\|\xi_i - \alpha_0\|_2 \leq \rho$. The aggregation operator is
+\begin{equation}
+\alpha_{i+1} = (1-\gamma_i)\hat{\alpha}_{i+1} + \gamma_i \xi_i,
+\end{equation}
+where $\hat{\alpha}_{i+1}$ is the natural agent output satisfying
+$\|\hat{\alpha}_{i+1} - \alpha_i\|_2 \leq \epsilon$.
+\end{definition}
+
+\begin{theorem}[Drift-Decay Theorem]
+Under Definition~2 with $\lambda \triangleq 1 - \gamma_{\min} \in (0,1)$,
+the drift sequence satisfies
+\begin{equation}
+\delta_{i+1} \leq \lambda\,\delta_i + \lambda\epsilon +
+(1-\lambda)\rho
+\end{equation}
+and consequently
+\begin{equation}
+\delta_n \leq \lambda^n \delta_0 +
+\frac{\lambda\epsilon + (1-\lambda)\rho}{1-\lambda}
+\bigl(1-\lambda^n\bigr).
+\end{equation}
+In particular, the asymptotic drift envelope is
+\begin{equation}
+\delta_\infty \leq \rho + \frac{\lambda\epsilon}{1-\lambda},
+\end{equation}
+which is \emph{independent of chain length $n$}.
+\end{theorem}
+
+\begin{IEEEproof}[Proof Sketch]
+Apply the triangle inequality to (1):
+\begin{align*}
+\delta_{i+1} &= \|\alpha_{i+1} - \alpha_0\|
+\leq (1-\gamma_i)\|\hat{\alpha}_{i+1} - \alpha_0\| +
+\gamma_i\|\xi_i - \alpha_0\|\\
+&\leq (1-\gamma_i)(\delta_i + \epsilon) + \gamma_i \rho
+\leq \lambda(\delta_i + \epsilon) + (1-\lambda)\rho.
+\end{align*}
+Iterating and summing the geometric series yields~(3).
+Taking $n \to \infty$ delivers~(4).
+\end{IEEEproof}
+
+The practical consequence is significant: the cascading-drift
+catastrophe familiar from unverified LLM chains is replaced by a
+fixed budget that depends on verifier quality $\rho$ and per-agent
+noise $\epsilon$, but not on how many agents the workflow chains
+together. This means that longer pipelines are not inherently riskier
+under \textsc{TRACE-MAS}, provided the verifier quorum quality
+is maintained.
+
+\subsection{Dynamic ZKP Verification Threshold}
+\label{subsec:zkp}
+
+To neutralize inter-agent spoofing, every message-bearing handoff must
+carry a non-interactive zero-knowledge proof that jointly binds identity,
+policy commitment, and message provenance.
+
+\begin{definition}[Agent Attestation]
+Let $sk_i, pk_i$ denote agent $A_i$'s signing key pair, and let
+$C_{\theta_i}$ denote a hiding commitment to $A_i$'s declared policy
+parameters $\theta_i$. The agent generates
+\[
+\pi_i^{(t)} \leftarrow \mathsf{Prove}\bigl(sk_i,\, m_i^{(t)},\,
+C_{\theta_i},\, \mathcal{H}_i^{(t)}\bigr),
+\]
+attesting jointly to: (i) knowledge of $sk_i$,
+(ii) consistency of message $m_i^{(t)}$ with declared policy $\theta_i$,
+and (iii) consistency of $\theta_i$ with the agent's observed history
+$\mathcal{H}_i^{(t)}$.
+\end{definition}
+
+The verifier accepts $\pi_i^{(t)}$ iff the standard ZKP verification
+passes and the behavioral score crosses a dynamic threshold:
+\begin{equation}
+\mathsf{Verify}(\pi_i^{(t)}) = 1 \ \wedge\
+\mathsf{Score}\bigl(\pi_i^{(t)}, \mathcal{H}_i^{(t)}\bigr) \geq
+\tau_i^{(t)}.
+\end{equation}
+
+\begin{definition}[Dynamic Threshold]
+Let $\rho_i^{(t)} \in [0, \infty)$ be the runtime risk score of agent
+$i$ at time $t$, computed from prior anomalies, blast radius of the
+pending action, and network exposure. The dynamic threshold is
+\begin{equation}
+\tau_i^{(t)} = \tau_0 + \kappa\,\log\bigl(1 + \rho_i^{(t)}\bigr).
+\end{equation}
+\end{definition}
+
+\begin{theorem}[Spoofing-Acceptance Bound]
+Let the underlying ZKP scheme have soundness error $2^{-s}$, and
+let an adversary forging behavioral evidence enjoy advantage at most
+$\mu > 0$ in producing high-scoring transcripts. For any single
+round,
+\begin{equation}
+\Pr[\text{rogue agent accepted}] \leq 2^{-s} + e^{-\tau_i^{(t)}/\mu}.
+\end{equation}
+Over $N$ rounds, with the threshold calibrated as
+$\tau_i^{(t)} \geq \mu\log(1/\varepsilon)$, the swarm's
+union-bounded spoofing probability is at most
+$N(2^{-s} + \varepsilon)$.
+\end{theorem}
+
+\begin{IEEEproof}[Proof Sketch]
+The first term follows directly from soundness of the ZKP scheme.
+The second follows from a sub-exponential tail bound on $\mathsf{Score}$
+under the assumption that the adversary's transcript distribution
+satisfies $\Pr[\mathsf{Score} \geq \tau] \leq e^{-\tau/\mu}$.
+The union bound across $N$ rounds completes the argument.
+\end{IEEEproof}
+
+The adaptive shape of $\tau_i^{(t)}$ is central to deployability.
+Routine, low-risk handoffs---passing intermediate results between
+retrieval and reasoning agents---incur minimal verification overhead.
+High-risk operations---payments, deployments, privilege escalations---
+automatically demand cryptographic proofs of correspondingly higher
+confidence. This inherits from blockchain-anchored mutual-authentication
+schemes~\cite{ref:zpma2024} but generalizes them to behavioral
+commitments rather than mere identity.
+
+\subsection{Temporal Memory-Validation Boundary}
+\label{subsec:temporal}
+
+Temporal attacks succeed when no agent's observation window is long
+enough to detect the cumulative perturbation. We therefore impose a
+sliding-window inconsistency functional on the joint memory.
+
+\begin{definition}[Temporal Inconsistency Functional]
+For window size $T_w$ centered at time $t$, define
+\begin{equation}
+I(t, T_w) \triangleq \sup_{(s_1, s_2) \in \mathcal{W}(t,T_w)}
+D_{\mathrm{KL}}\bigl(M^{(s_1)} \,\big\|\, M^{(s_2)}\bigr),
+\end{equation}
+where $\mathcal{W}(t, T_w)$ is the set of admissible time pairs in
+the window.
+\end{definition}
+
+\begin{definition}[Temporal Validation Boundary]
+Given an adversarial perturbation budget $\|\eta\|_p \leq B$ and a
+calibration function $\varphi(\cdot)$, the validation boundary is
+the optimal window length $T_w^{*}$ satisfying
+\begin{equation}
+I\bigl(t, T_w^{*}\bigr) \leq \varphi(B)
+\ \Leftrightarrow\ \text{benign trajectory}.
+\end{equation}
+Any window in which $I(t, T_w^{*}) > \varphi(B)$ triggers temporal
+quarantine.
+\end{definition}
+
+\begin{assumption}[Sub-Gaussian Benign Drift]
+Benign memory increments are sub-Gaussian with mean shift $\nu$ and
+variance proxy $\sigma^2$.
+\end{assumption}
+
+\begin{theorem}[Temporal Detection Bound]
+Under Assumption~1, the probability that an adversarial trajectory
+with cumulative budget $B$ evades detection inside a window of length
+$T_w$ satisfies
+\begin{equation}
+\Pr[\text{undetected at time } t] \leq
+\exp\!\left(-\frac{T_w(\varphi(B) - \nu)^2}{2\sigma^2}\right).
+\end{equation}
+The optimal window solves
+\begin{equation}
+T_w^{*} = \arg\min_{T_w}\,\bigl\{\mathcal{R}_{\mathrm{FN}}(T_w, B)
++ \mathcal{R}_{\mathrm{FP}}(T_w)\bigr\}.
+\end{equation}
+\end{theorem}
+
+\begin{IEEEproof}[Proof Sketch]
+Apply Hoeffding's inequality to the sum of sub-Gaussian increments
+under the null hypothesis of benign drift. The bound~(10) is a
+standard concentration result. Equation~(11) follows from balancing
+the false-negative/false-positive detection-error decomposition.
+\end{IEEEproof}
+
+\subsection{Resilience to LLM-Specific Injection Vectors}
+\label{subsec:injection}
+
+The three theorems above were stated for abstract agent outputs
+$h_i^{(t)}$. LLM agents introduce a specific injection pathway that
+does not arise in classical multi-agent control: an adversary can
+embed a directive in \emph{content} that a legitimate agent processes
+(a retrieved document, a tool output, an upstream message), causing
+that agent to emit a message that serves the adversary's goal rather
+than the declared workflow. This is the cross-agent analogue of prompt
+injection and has been formalized as \emph{Prompt Infection}
+by~\cite{ref:promptinfection2024}.
+
+Under \textsc{TRACE-MAS}, this attack is covered by Theorem~2 without
+modification. When a prompt injection event causes agent $A_i$ to
+deviate from its declared policy $\theta_i$, the injected message
+$m_i^{(t)}$ is inconsistent with $C_{\theta_i}$, and the attestation
+proof $\pi_i^{(t)}$ cannot be generated for it---there is no witness.
+The verifier therefore rejects the handoff.
+
+\begin{remark}
+The ZKP attestation in Definition~3 binds message content to a
+policy commitment, not merely to an identity key. An agent that
+generates a message under an adversarial directive cannot produce a
+valid proof $\pi_i^{(t)}$ for that message unless the directive is
+consistent with the agent's declared policy $\theta_i$. Prompt
+injection attacks typically direct the agent to act inconsistently
+with its declared role (e.g., exfiltrate data, issue unauthorized
+commands), so the proof generation step fails by soundness.
+\end{remark}
+
+Memory poisoning attacks~\cite{ref:agentpoison2024} that corrupt
+the retrieval layer are captured by Theorem~3: poisoned retrievals
+introduce abnormal distributional shifts in $M^{(t)}$ that exceed
+the benign-drift calibration $\varphi(B)$, triggering temporal
+quarantine. The window length $T_w^{*}$ must be calibrated to the
+attacker's poisoning rate, which is a standard estimation problem
+(see limitations in Section~\ref{sec:discussion}).
+
+\subsection{Composite Security Envelope}
+\label{subsec:composite}
+
+Combining Theorems~1, 2, and~3, the joint failure probability of
+\textsc{TRACE-MAS} over a workflow of $n$ agents and $T$ rounds is
+bounded by
+\begin{equation}
+P_{\mathrm{fail}} \leq
+\mathbf{1}[\delta_\infty > \delta^{*}]
++ T\bigl(2^{-s} + \varepsilon\bigr)
++ T\,\exp\!\left(-\frac{T_w^{*}(\varphi(B) - \nu)^2}{2\sigma^2}
+\right).
+\end{equation}
+Each term is independently controllable: the first by verifier quality
+$\rho$ and contraction rate $\lambda$; the second by soundness
+parameter $s$ and threshold calibration; the third by window length
+$T_w^{*}$ and noise calibration $\sigma^2$. Cascading drift cannot
+inflate the spoofing or temporal terms because the verifier-mediated
+aggregation acts---and resets drift---before downstream propagation.
+
+%=============================================================================
+\section{Algorithmic Pseudocode}
+\label{sec:algo}
+%=============================================================================
+
+The unified runtime executes the three protections in sequence per
+round. The algorithm and all supporting materials are open-sourced at
+\url{https://github.com/sunilgentyala/TRACE-MAS}.
+
+\begin{algorithm}[t]
+\caption{\textsc{TRACE-MAS} Unified Runtime}
+\begin{algorithmic}[1]
+\REQUIRE Agent chain $\mathcal{A}=\{A_1,\ldots,A_n\}$; verifier
+quorum $\mathcal{V}$; user intent $\alpha_0$;
+ZKP scheme $(\mathsf{Prove},\mathsf{Verify})$;
+calibration $\varphi(\cdot)$; hyperparameters
+$\gamma_{\min}, \tau_0, \kappa, T_w^{*}, B$
+\ENSURE Certified trajectory $(\alpha_1,\ldots,\alpha_n)$ or
+$\textsc{Halt}$
+\STATE $\alpha_0 \leftarrow$ user intent;\;
+$M^{(0)} \leftarrow \emptyset$
+\FOR{$t = 1$ \TO $T$}
+  \FOR{each agent $A_i$ acting at round $t$}
+    \STATE $A_i$ produces $\hat{\alpha}_{i+1}$
+    and message $m_i^{(t)}$
+    \STATE $\pi_i^{(t)} \leftarrow \mathsf{Prove}(sk_i,
+    m_i^{(t)}, C_{\theta_i}, \mathcal{H}_i^{(t)})$
+    \STATE Compute $\rho_i^{(t)}$;\;
+    $\tau_i^{(t)} \leftarrow \tau_0 +
+    \kappa\log(1+\rho_i^{(t)})$
+    \IF{$\mathsf{Verify}(\pi_i^{(t)}) \neq 1$ \OR
+        $\mathsf{Score}(\pi_i^{(t)},\mathcal{H}_i^{(t)})
+        < \tau_i^{(t)}$}
+      \STATE Quarantine $A_i$;\;
+      raise \textsc{SpoofOrInjectAlarm};\;
+      \textbf{return} \textsc{Halt}
+    \ENDIF
+    \STATE $\mathcal{V}$ produces reference $\xi_i^{(t)}$
+    \STATE $\gamma_i \leftarrow
+    \max\bigl(\gamma_{\min},\,g(\rho_i^{(t)})\bigr)$
+    \STATE $\alpha_{i+1} \leftarrow
+    (1-\gamma_i)\hat{\alpha}_{i+1} + \gamma_i \xi_i^{(t)}$
+    \COMMENT{Eq.~(1)}
+    \STATE $\delta_{i+1} \leftarrow
+    \|\alpha_{i+1} - \alpha_0\|_2$
+    \IF{$\delta_{i+1} > \delta^{*}$}
+      \STATE Raise \textsc{DriftAlarm};\;
+      \textbf{return} \textsc{Halt}
+    \ENDIF
+    \STATE $M^{(t)} \leftarrow M^{(t-1)} \cup
+    \{\alpha_{i+1}\}$
+  \ENDFOR
+  \STATE Compute $I(t, T_w^{*})$ via Eq.~(8)
+  \IF{$I(t, T_w^{*}) > \varphi(B)$}
+    \STATE Raise \textsc{TemporalAlarm};\;
+    quarantine suspect window in $M$
+    \STATE Roll back to last certified checkpoint;\;
+    \textbf{return} \textsc{Halt}
+  \ENDIF
+\ENDFOR
+\RETURN Certified trajectory $(\alpha_1,\ldots,\alpha_n)$
+\end{algorithmic}
+\end{algorithm}
+
+\noindent\textbf{Complexity.}
+Each round costs $O(\log|\mathcal{A}|)$ for ZKP verification
+(succinct schemes), $O(d)$ for the aggregation step, and
+$O(T_w^{*})$ for the window functional. The dominant overhead in
+deployment is ZKP proof \emph{generation}, not verification;
+this is amortizable through batched proof aggregation or
+pre-committed SNARKs computed ahead of each workflow step.
+
+%=============================================================================
+\section{Discussion and Threat-Model Boundaries}
+\label{sec:discussion}
+%=============================================================================
+
+\paragraph*{Verifier collusion}
+Theorem~1 assumes the verifier residual $\rho$ is bounded. In
+practice this requires either a quorum threshold
+$k > k_{\mathrm{Byz}}$ with classical Byzantine
+guarantees~\cite{ref:tc2024pbft} or a heterogeneous quorum sampled
+from disjoint provider trust domains. Whether $k_{\mathrm{Byz}}$
+remains meaningful in fully open swarms whose membership shifts on
+the order of seconds is, in our view, an open question worth
+dedicated study.
+
+\paragraph*{Threshold calibration drift}
+The dynamic threshold $\tau_i^{(t)}$ is itself an attack surface:
+a patient adversary could nudge $\rho_i^{(t)}$ downward over time
+to reduce the effective security bar. We mitigate this by requiring
+the risk-score path itself to be temporally validated under
+Theorem~3, closing the feedback loop. A complete fixed-point
+characterization under mild monotonicity assumptions on $g(\cdot)$
+is left to future work.
+
+\paragraph*{Prompt injection and memory poisoning in production}
+Recent attacks document that prompt injection in multi-agent
+settings propagates with alarming efficiency~\cite{ref:promptinfection2024},
+and memory poisoning can achieve high attack success rates at very
+low poison fractions~\cite{ref:agentpoison2024}. The coverage
+argument in Section~\ref{subsec:injection} shows that
+\textsc{TRACE-MAS} intercepts both via the attestation layer.
+However, the argument relies on the ZKP prover having access to the
+policy commitment $C_{\theta_i}$ \emph{at proof time}. If an
+adversary can corrupt $C_{\theta_i}$ before attestation begins---for
+example, by poisoning the agent's initialization context---the
+framework's injection guarantee does not apply. Protecting the
+initialization phase is outside our current scope.
+
+\paragraph*{Agent communication protocol alignment}
+Emerging standards for agent-to-agent communication~\cite{ref:agentsec2025,ref:a2a2025}
+converge on OAuth-anchored authentication over HTTPS, but do not yet
+specify behavioral commitments or policy proofs. \textsc{TRACE-MAS}
+is designed to be composable with these standards: the ZKP attestation
+layer can be implemented as an additional header on A2A or MCP
+messages, and the verifier quorum can run as a sidecar service that
+intercepts inter-agent calls.
+
+\paragraph*{Embodiment}
+For embodied agents whose actions perturb the physical
+environment~\cite{ref:embodied2025}, the temporal functional must
+include observational state $o^{(t)}$ alongside memory state. The
+framework extends without modification by replacing $M^{(t)}$ with
+the joint $(M^{(t)}, o^{(t)})$, though a careful treatment of partial
+observability deserves its own investigation.
+
+\paragraph*{Privacy}
+Privacy of agent reasoning is preserved by zero-knowledge: the
+attestation reveals nothing about $\theta_i$ beyond its commitment.
+Combined with prior work on tool-use privacy~\cite{ref:tdsc2024}
+and federated optimization under privacy constraints~\cite{ref:jas2024priv},
+\textsc{TRACE-MAS} is compatible with confidentiality requirements
+in healthcare and finance.
+
+\paragraph*{Limitations}
+Several open challenges limit the immediate deployability of
+\textsc{TRACE-MAS} as a production system. First, the framework
+is theoretical: empirical validation across coder--QA--deploy
+pipelines and embodied robotic swarms is reserved for follow-up
+work, and the practical constants in our bounds will only become
+trustworthy once measured against real workloads. Second, proof
+generation at industrial LLM dialogue rates---which can exceed
+hundreds of messages per second in large swarms---remains
+computationally intensive, even for succinct ZKP
+backends; batching and pre-commitment strategies reduce but do not
+eliminate this overhead. Third, our verifier quorum model assumes
+a fixed Byzantine budget $k_{\mathrm{Byz}}$; what happens when
+the quorum itself is partially compromised or when membership
+changes faster than the quorum can be reconstituted is an open
+and under-explored question. Fourth, calibrating $\varphi(B)$
+and $\sigma^2$ without ground-truth knowledge of the adversarial
+budget requires online estimation, and doing so safely without
+admitting calibration-time poisoning is nontrivial. Fifth,
+Theorem~3 rests on sub-Gaussian benign drift; real-world
+multi-day agent rollouts may exhibit heavier tails, and the bound's
+sensitivity under those distributions deserves characterization.
+Finally, the framework presumes correctness of the underlying
+cryptographic primitives; cryptographic agility---the ability to
+swap ZKP backends as advances in cryptanalysis emerge---is
+desirable but not yet specified.
+
+%=============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+%=============================================================================
+
+The security gaps in multi-agent LLM pipelines are not independent
+vulnerabilities. They are a coherent failure family rooted in the
+absence of verified cross-checking on the inter-agent surface. A
+drift that goes undetected at step $i$ becomes the ground truth
+for step $i+1$; an identity that goes unauthenticated admits rogue
+participants; a policy that goes uncommitted admits prompt injection;
+a memory that goes unmonitored admits slow temporal manipulation.
+\textsc{TRACE-MAS} treats these four failure modes jointly and closes
+them with a single composable framework.
+
+The three core theorems deliver a chain-length-independent drift
+envelope, a logarithmically-tight spoofing-and-injection acceptance
+bound, and a sub-Gaussian temporal-detection bound. Their composition
+yields a failure probability whose three terms are independently
+controllable. The unified algorithm runs in $O(\log|\mathcal{A}|
++ d + T_w^{*})$ per round, with ZKP proof generation as the dominant
+amortizable cost.
+
+The next phase of this research program is empirical: instantiation
+of the ZKP attestation layer using a concrete succinct proof system
+(e.g., Groth16 or PLONK), calibration of $\varphi(B)$ on
+representative benchmark pipelines, red-team evaluation against staged
+prompt-infection and AgentPoison-class attacks, and measurement of the
+practical overhead of the verifier quorum in a cloud-native deployment.
+All pseudocode and supporting materials are available at
+\url{https://github.com/sunilgentyala/TRACE-MAS}.
+
+%=============================================================================
+\begin{thebibliography}{99}
+
+\bibitem{ref:embodied2025}
+Z.~Li, W.~Wu, Y.~Guo, J.~Sun, and Q.-L. Han,
+``Embodied multi-agent systems: A review,''
+\textit{IEEE/CAA J. Autom. Sinica}, vol.~12, no.~6,
+pp.~1095--1116, Jun.~2025,
+doi:~10.1109/JAS.2025.125552.
+
+\bibitem{ref:tifs2025grey}
+Y.~Ma and W.~Li,
+``Grey-box adversarial attack on communication in communicative
+multi-agent reinforcement learning,''
+\textit{IEEE Trans.\ Inf.\ Forensics Security}, vol.~20,
+pp.~4679--4693, 2025,
+doi:~10.1109/TIFS.2025.3560203.
+
+\bibitem{ref:tifs2024safe}
+Z.~Lv, L.~Xiao, Y.~Chen, H.~Chen, and X.~Ji,
+``Safe multi-agent reinforcement learning for wireless applications
+against adversarial communications,''
+\textit{IEEE Trans.\ Inf.\ Forensics Security}, vol.~19,
+pp.~6824--6839, 2024,
+doi:~10.1109/TIFS.2024.3423428.
+
+\bibitem{ref:access2025multi}
+Y.~Hmimou, M.~Tabaa, A.~Khiat, and Z.~Hidila,
+``A multi-agent system for cybersecurity threat detection and
+correlation using large language models,''
+\textit{IEEE Access}, vol.~13, pp.~150199--150215, 2025,
+doi:~10.1109/ACCESS.2025.3602681.
+
+\bibitem{ref:jas2025consensus}
+C.~Zhou, Z.~Mao, B.~Jiang, and X.-G. Yan,
+``Adaptive fault-tolerant consensus tracking control for nonlinear
+multi-agent systems with double semi-Markovian switching topologies
+and unknown control directions,''
+\textit{IEEE/CAA J. Autom. Sinica}, 2025,
+doi:~10.1109/JAS.2025.125285.
+
+\bibitem{ref:tc2024pbft}
+C.~Li, W.~Qiu, X.~Li, C.~Liu, and Z.~Zheng,
+``A dynamic adaptive framework for practical Byzantine fault tolerance
+consensus protocol in the Internet of Things,''
+\textit{IEEE Trans.\ Comput.}, vol.~73, no.~7,
+pp.~1669--1682, Jul.~2024,
+doi:~10.1109/TC.2024.3377921.
+
+\bibitem{ref:jas2024priv}
+M.~Wei, W.~Yu, D.~Chen, M.~Kang, and G.~Cheng,
+``Privacy distributed constrained optimization over time-varying
+unbalanced networks and its application in federated learning,''
+\textit{IEEE/CAA J. Autom. Sinica}, vol.~12, no.~2,
+pp.~335--346, Feb.~2025,
+doi:~10.1109/JAS.2024.124869.
+
+\bibitem{ref:tdsc2024}
+X.~Zhang, H.~Xu, Z.~Ba, Z.~Wang, Y.~Hong, J.~Liu, Z.~Qin,
+and K.~Ren,
+``PrivacyAsst: Safeguarding user privacy in tool-using large language
+model agents,''
+\textit{IEEE Trans.\ Dependable Secure Comput.}, vol.~21, no.~6,
+pp.~5242--5258, Nov.--Dec.~2024,
+doi:~10.1109/TDSC.2024.3372777.
+
+\bibitem{ref:zpma2024}
+A.~Pathak, I.~Al-Anbagi, and H.~J. Hamilton,
+``Blockchain-enhanced zero knowledge proof-based privacy-preserving
+mutual authentication for IoT networks,''
+\textit{IEEE Access}, vol.~12, pp.~118618--118636, 2024,
+doi:~10.1109/ACCESS.2024.3450313.
+
+\bibitem{ref:comst2023}
+Y.~Wang, T.~Sun, S.~Li, X.~Yuan, W.~Ni, E.~Hossain,
+and H.~V. Poor,
+``Adversarial attacks and defenses in machine learning-empowered
+communication systems and networks: A contemporary survey,''
+\textit{IEEE Commun.\ Surveys Tuts.}, vol.~25, no.~4,
+pp.~2245--2298, 4th Quart., 2023,
+doi:~10.1109/COMST.2023.3319492.
+
+\bibitem{ref:datasentinel2025}
+Y.~Liu, Y.~Jia, J.~Jia, D.~Song, and N.~Z. Gong,
+``DataSentinel: A game-theoretic detection of prompt injection
+attacks,''
+in \textit{Proc. 46th IEEE Symp. Security Privacy (SP)},
+San Francisco, CA, USA, 2025, pp.~2190--2208,
+doi:~10.1109/SP61157.2025.00250.
+
+\bibitem{ref:promptinfection2024}
+D.~Lee and M.~Tiwari,
+``Prompt infection: LLM-to-LLM prompt injection within multi-agent
+systems,'' arXiv preprint arXiv:2410.07283, Oct.~2024. [Online].
+Available: \url{https://arxiv.org/abs/2410.07283}
+
+\bibitem{ref:agentpoison2024}
+Z.~Chen, Z.~Xiang, C.~Xiao, D.~Song, and B.~Li,
+``AgentPoison: Red-teaming LLM agents via poisoning memory or
+knowledge bases,''
+in \textit{Adv. Neural Inf. Process. Syst. (NeurIPS)}, vol.~37,
+2024. [Online]. Available:
+\url{https://proceedings.neurips.cc/paper_files/paper/2024/hash/eb113910e9c3f6242541c1652e30dfd6}
+
+\bibitem{ref:agentsec2025}
+Y.~Louck, A.~Stulman, and A.~Dvir,
+``Security analysis of agentic AI communication protocols:
+A comparative evaluation,''
+\textit{ACM Trans. AI Security Privacy}, 2025,
+doi:~10.1145/3803431.
+
+\bibitem{ref:a2a2025}
+Z.~Anbiaee, M.~Rabbani, M.~Mirani, G.~Piya, I.~Opushnyev,
+A.~Ghorbani, and S.~Dadkhah,
+``Security threat modeling for emerging AI-agent protocols:
+A comparative analysis of MCP, A2A, Agora, and ANP,''
+arXiv preprint arXiv:2602.11327, Feb.~2026. [Online].
+Available: \url{https://arxiv.org/abs/2602.11327}
+
+\end{thebibliography}
+
+\end{document}

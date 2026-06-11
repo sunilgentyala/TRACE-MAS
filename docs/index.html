@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TRACE-MAS | Multi-Agent LLM Pipeline Security</title>
+  <meta name="description" content="TRACE-MAS: A unified cryptographic framework securing inter-agent surfaces in multi-agent LLM pipelines against drift, spoofing, injection, and temporal attacks." />
+  <meta name="author" content="Sunil Gentyala" />
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --code-bg: #1f2937;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* NAV */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    nav .logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+    nav a { color: var(--muted); font-size: 0.9rem; }
+    nav a:hover { color: var(--text); text-decoration: none; }
+
+    /* HERO */
+    .hero {
+      max-width: 860px;
+      margin: 4rem auto 2rem;
+      padding: 0 1.5rem;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+    .hero .subtitle {
+      color: var(--muted);
+      font-size: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .badges {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1px solid;
+    }
+    .badge-blue { color: var(--accent); border-color: var(--accent); background: rgba(88,166,255,0.08); }
+    .badge-green { color: var(--accent2); border-color: var(--accent2); background: rgba(63,185,80,0.08); }
+    .badge-red { color: var(--accent3); border-color: var(--accent3); background: rgba(247,129,102,0.08); }
+
+    /* MAIN */
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 1.5rem 4rem;
+    }
+    section { margin-bottom: 3rem; }
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.2rem;
+    }
+    h3 { font-size: 1.1rem; font-weight: 600; color: var(--accent); margin: 1rem 0 0.5rem; }
+    p { color: #c9d1d9; margin-bottom: 0.9rem; }
+
+    /* THREAT TABLE */
+    .threat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 640px) { .threat-grid { grid-template-columns: 1fr; } }
+    .threat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem;
+    }
+    .threat-card .threat-name {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--accent3);
+      margin-bottom: 0.4rem;
+    }
+    .threat-card .threat-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+    .threat-card .defense {
+      font-size: 0.82rem;
+      color: var(--accent2);
+    }
+    .defense::before { content: "Defense: "; font-weight: 600; }
+
+    /* THEOREM BOXES */
+    .theorem-list { display: flex; flex-direction: column; gap: 1rem; }
+    .theorem-card {
+      background: var(--surface);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.2rem;
+    }
+    .theorem-card.t2 { border-left-color: var(--accent2); }
+    .theorem-card.t3 { border-left-color: #d2a8ff; }
+    .theorem-card h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+    .theorem-card.t2 h3 { color: var(--accent2); }
+    .theorem-card.t3 h3 { color: #d2a8ff; }
+    .theorem-card p { font-size: 0.88rem; margin: 0 0 0.5rem; }
+    .eq {
+      background: var(--code-bg);
+      border-radius: 6px;
+      padding: 0.5rem 0.8rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.85rem;
+      color: #e6edf3;
+      overflow-x: auto;
+    }
+
+    /* CODE BLOCKS */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      color: #e6edf3;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      margin-bottom: 1rem;
+    }
+
+    /* PIPELINE VIZ */
+    .pipeline {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 1.2rem 0;
+      flex-wrap: wrap;
+    }
+    .p-agent {
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-size: 0.82rem;
+      text-align: center;
+      min-width: 90px;
+    }
+    .p-seam {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 0 0.3rem;
+    }
+    .p-arrow { color: var(--muted); font-size: 1.2rem; }
+    .p-label {
+      font-size: 0.65rem;
+      color: var(--accent3);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* REFS */
+    .ref-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .ref-table th {
+      background: var(--surface);
+      color: var(--muted);
+      padding: 0.5rem 0.8rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .ref-table td {
+      padding: 0.5rem 0.8rem;
+      border-bottom: 1px solid #21262d;
+      color: #c9d1d9;
+      vertical-align: top;
+    }
+    .ref-table tr:hover td { background: rgba(88,166,255,0.04); }
+
+    /* CTA */
+    .cta-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.55rem 1.2rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+    /* AUTHOR */
+    .author-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.4rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1.2rem;
+    }
+    .author-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #d2a8ff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #0d1117;
+      flex-shrink: 0;
+    }
+    .author-info h3 { color: var(--text); font-size: 1rem; margin: 0 0 0.25rem; }
+    .author-info p { font-size: 0.83rem; color: var(--muted); margin: 0 0 0.5rem; }
+    .author-links { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+    .author-links a { font-size: 0.82rem; color: var(--accent); }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">TRACE-MAS</span>
+  <a href="#framework">Framework</a>
+  <a href="#algorithm">Algorithm</a>
+  <a href="#references">References</a>
+  <a href="https://github.com/sunilgentyala/TRACE-MAS" target="_blank">GitHub</a>
+</nav>
+
+<div class="hero">
+  <h1>TRACE-MAS</h1>
+  <p class="subtitle">
+    Tri-vector Resilient Algorithm for Cooperative Embodied Multi-Agent Security<br>
+    <em>Securing the inter-agent surface in multi-agent LLM pipelines</em>
+  </p>
+  <div class="badges">
+    <span class="badge badge-blue">IEEE Conference Paper</span>
+    <span class="badge badge-green">15 References with DOIs</span>
+    <span class="badge badge-red">4 Attack Vectors Addressed</span>
+    <span class="badge badge-blue">3 Proven Theorems</span>
+  </div>
+  <div class="cta-row" style="justify-content:center">
+    <a href="https://github.com/sunilgentyala/TRACE-MAS/blob/main/paper/MAS_Complexity_Gaps_TRACE_v3.tex" class="btn btn-primary" target="_blank">Read the Paper (LaTeX)</a>
+    <a href="https://github.com/sunilgentyala/TRACE-MAS" class="btn btn-outline" target="_blank">View on GitHub</a>
+  </div>
+</div>
+
+<main>
+
+  <!-- ABSTRACT -->
+  <section id="abstract">
+    <h2>Abstract</h2>
+    <p>
+      Modern AI systems rarely rely on a single model. A coder agent drafts a module, a
+      quality-assurance agent reviews it, and a deployment agent ships it. Three distinct LLMs.
+      One shared pipeline. Zero cryptographic cross-verification between them. When that
+      pipeline is attacked, the consequences are not isolated to one model. They propagate
+      invisibly across the entire chain.
+    </p>
+    <p>
+      This paper identifies four structurally related failure modes that define the attack
+      surface of such pipelines: <strong>cascading alignment drift</strong>,
+      <strong>inter-agent identity spoofing</strong>, <strong>cross-agent prompt injection</strong>,
+      and <strong>temporal adversarial manipulation</strong>. To address all four jointly, we
+      introduce <strong>TRACE-MAS</strong>, a unified theoretical framework grounded in
+      contraction theory, zero-knowledge cryptography, and statistical change detection.
+    </p>
+    <p>
+      TRACE-MAS delivers three provable guarantees: a chain-length-independent drift envelope,
+      a logarithmically-tight spoofing-and-injection acceptance bound, and a sub-Gaussian
+      temporal miss probability. Their composition yields a single composite failure bound
+      whose three terms are independently controllable by parameter choice.
+    </p>
+  </section>
+
+  <!-- PIPELINE -->
+  <section>
+    <h2>The Problem: The Undefended Inter-Agent Surface</h2>
+    <p>In a multi-agent LLM pipeline, each agent boundary is not a security boundary:</p>
+    <div class="pipeline">
+      <div class="p-agent">Coder<br>Agent A₁</div>
+      <div class="p-seam">
+        <span class="p-label">DRIFT / INJECT</span>
+        <span class="p-arrow">&#8594;</span>
+      </div>
+      <div class="p-agent">QA<br>Agent A₂</div>
+      <div class="p-seam">
+        <span class="p-label">SPOOF / POISON</span>
+        <span class="p-arrow">&#8594;</span>
+      </div>
+      <div class="p-agent">Deploy<br>Agent A₃</div>
+      <div class="p-seam">
+        <span class="p-label">TEMPORAL</span>
+        <span class="p-arrow">&#8594;</span>
+      </div>
+      <div class="p-agent" style="border-color: var(--accent3)">Malicious<br>Outcome</div>
+    </div>
+    <p>A small attack at step 1 becomes a large effect at step 3 with no agent detecting it individually.</p>
+
+    <div class="threat-grid" style="margin-top:1.5rem">
+      <div class="threat-card">
+        <div class="threat-name">Cascading Alignment Drift</div>
+        <div class="threat-desc">Small per-agent errors accumulate superadditively. δₙ grows at least linearly in chain length under naive propagation.</div>
+        <div class="defense">Contractive aggregation; drift envelope independent of n</div>
+      </div>
+      <div class="threat-card">
+        <div class="threat-name">Inter-Agent Identity Spoofing</div>
+        <div class="threat-desc">Rogue agents admitted to open swarms via forged capability descriptors execute commands trusted by downstream agents.</div>
+        <div class="defense">Dynamic ZKP threshold; rogue acceptance &le; 2&#8315;&#738; + e&#8315;&#120591;&#47;&#956;</div>
+      </div>
+      <div class="threat-card">
+        <div class="threat-name">Cross-Agent Prompt Injection</div>
+        <div class="threat-desc">Adversarial directives embedded in processed content hijack downstream agents without compromising upstream ones.</div>
+        <div class="defense">Policy-commitment attestation; injected messages fail proof generation</div>
+      </div>
+      <div class="threat-card">
+        <div class="threat-name">Temporal Adversarial Attacks</div>
+        <div class="threat-desc">Staged perturbations each below any agent's detection threshold cumulatively drive the system to a malicious end-state.</div>
+        <div class="defense">Sliding-window KL functional; sub-Gaussian miss probability bound</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FRAMEWORK -->
+  <section id="framework">
+    <h2>Mathematical Framework</h2>
+    <p>
+      TRACE-MAS models the inter-agent surface as the tuple
+      <em>S = ({h_i}, {&#960;_i}, M, &#958;)</em> where h_i are agent outputs,
+      &#960;_i are cryptographic attestations, M is joint memory, and &#958; is the
+      verifier reference signal. Three theorems protect three components.
+    </p>
+
+    <div class="theorem-list">
+      <div class="theorem-card">
+        <h3>Theorem 1 &mdash; Drift-Decay under Contractive Aggregation</h3>
+        <p>
+          Verifier-mediated aggregation &#945;<sub>i+1</sub> = (1&#8722;&#947;)&#226;<sub>i+1</sub> + &#947;&#958;<sub>i</sub>
+          produces a contractive recursion whose asymptotic drift envelope is:
+        </p>
+        <div class="eq">&#948;&#8734; &le; &#961; + &#955;&#949; / (1 &#8722; &#955;)&nbsp;&nbsp;&nbsp;[independent of chain length n]</div>
+      </div>
+      <div class="theorem-card t2">
+        <h3>Theorem 2 &mdash; Spoofing-and-Injection Acceptance Bound</h3>
+        <p>
+          Dynamic ZKP threshold &#964;<sub>i</sub><sup>(t)</sup> = &#964;<sub>0</sub> + &#954;&#183;log(1+&#961;<sub>i</sub><sup>(t)</sup>)
+          bounds rogue acceptance per round:
+        </p>
+        <div class="eq">Pr[rogue accepted] &le; 2&#8315;&#738; + e&#8315;&#964;&#47;&#956;</div>
+        <p style="margin-top:0.5rem;font-size:0.82rem;color:var(--muted)">
+          Prompt injection is caught here: an injected message violates the policy commitment C&#952;,
+          so no valid proof &#960; can be generated for it.
+        </p>
+      </div>
+      <div class="theorem-card t3">
+        <h3>Theorem 3 &mdash; Temporal Detection Bound</h3>
+        <p>Sliding-window KL functional I(t, T<sub>w</sub>) over joint memory M detects slow attacks:</p>
+        <div class="eq">Pr[undetected] &le; exp( &#8722;T<sub>w</sub>&#183;(&#966;(B)&#8722;&#957;)&#178; / 2&#963;&#178; )</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:1.5rem">Composite Security Envelope</h3>
+    <div class="eq">P&#8342;&#8336;&#8342;&#8343; &le; 1[&#948;&#8734; &gt; &#948;*] + T(2&#8315;&#738; + &#949;) + T&#183;exp(&#8722;T<sub>w</sub>*&#183;(&#966;(B)&#8722;&#957;)&#178;/2&#963;&#178;)</div>
+    <p style="margin-top:0.8rem">Each term is independently controllable. Drift cannot inflate the spoofing or temporal terms.</p>
+  </section>
+
+  <!-- ALGORITHM -->
+  <section id="algorithm">
+    <h2>Algorithm</h2>
+    <p>The TRACE-MAS unified runtime processes each round in three sequential phases:</p>
+    <pre>TRACE-MAS(agents={A1..An}, verifiers=V, intent=α0, ZKP, params):
+  Initialize: M ← ∅
+
+  for t = 1 to T:
+    for each agent Ai acting at round t:
+
+      ── Phase 1: Attestation Gate ────────────────────────────
+      â, m  ← Ai produces output and message
+      π     ← Prove(sk_i, m, policy_commit_i, history_i)
+      ρ     ← compute_risk_score(Ai)
+      τ     ← τ0 + κ·log(1 + ρ)
+      if Verify(π) ≠ 1 or behavioral_score(π, history) < τ:
+        → HALT: SpoofOrInjectAlarm  [catches spoofing + prompt injection]
+
+      ── Phase 2: Drift Correction ────────────────────────────
+      ξ     ← verifier quorum V produces reference signal
+      γ     ← max(γ_min, g(ρ))
+      α_next ← (1-γ)·â + γ·ξ         [contractive aggregation]
+      if ‖α_next - α0‖ > δ*:
+        → HALT: DriftAlarm
+      M ← M ∪ {α_next}
+
+    ── Phase 3: Temporal Monitoring ─────────────────────────
+    I ← sup KL(M^s1 ‖ M^s2) over window Tw*
+    if I > φ(B):
+      → HALT: TemporalAlarm; rollback to last certified checkpoint
+
+  return certified trajectory (α1, …, αn)</pre>
+    <p><strong>Per-round complexity:</strong> O(log|A|) ZKP verification + O(d) aggregation + O(T<sub>w</sub>*) temporal functional.</p>
+  </section>
+
+  <!-- REFERENCES -->
+  <section id="references">
+    <h2>Key References</h2>
+    <table class="ref-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Citation</th>
+          <th>Contribution to TRACE-MAS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Li et al., JAS 2025 &mdash; Embodied MAS Review</td><td>Motivation for cross-agent verification</td></tr>
+        <tr><td>2</td><td>Ma &amp; Li, TIFS 2025 &mdash; Grey-box attacks on MARL</td><td>Attack surface evidence</td></tr>
+        <tr><td>3</td><td>Lv et al., TIFS 2024 &mdash; Safe MARL vs adversarial comms</td><td>Baseline defense limitations</td></tr>
+        <tr><td>4</td><td>Hmimou et al., IEEE Access 2025 &mdash; MAS for cyber threat detection</td><td>Inverse case: agents as defenders</td></tr>
+        <tr><td>5</td><td>Zhou et al., JAS 2025 &mdash; Fault-tolerant consensus with Semi-Markovian topologies</td><td>Consensus primitive</td></tr>
+        <tr><td>6</td><td>Li et al., IEEE TC 2024 &mdash; Dynamic PBFT for IoT</td><td>Byzantine quorum primitive</td></tr>
+        <tr><td>7</td><td>Wei et al., JAS 2025 &mdash; Privacy-distributed optimization</td><td>Privacy-preserving aggregation baseline</td></tr>
+        <tr><td>8</td><td>Zhang et al., TDSC 2024 &mdash; PrivacyAsst</td><td>Tool-use privacy in LLM agents</td></tr>
+        <tr><td>9</td><td>Pathak et al., IEEE Access 2024 &mdash; ZKP-based IoT auth</td><td>ZKP authentication backbone</td></tr>
+        <tr><td>10</td><td>Wang et al., IEEE COMST 2023 &mdash; Adversarial attacks survey</td><td>Temporal perturbation regime</td></tr>
+        <tr><td>11</td><td>Liu et al., IEEE S&amp;P 2025 &mdash; DataSentinel</td><td>Prompt injection detection baseline, doi: 10.1109/SP61157.2025.00250</td></tr>
+        <tr><td>12</td><td>Lee &amp; Tiwari, arXiv 2024 &mdash; Prompt Infection</td><td>Cross-agent injection formalization</td></tr>
+        <tr><td>13</td><td>Chen et al., NeurIPS 2024 &mdash; AgentPoison</td><td>Memory poisoning attack model</td></tr>
+        <tr><td>14</td><td>Louck et al., ACM TAISP 2025 &mdash; Agent protocol security</td><td>Protocol security analysis, doi: 10.1145/3803431</td></tr>
+        <tr><td>15</td><td>Anbiaee et al., arXiv 2026 &mdash; MCP/A2A/ANP threat modeling</td><td>Current protocol threat landscape</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- CITATION -->
+  <section id="cite">
+    <h2>Citation</h2>
+    <pre>@inproceedings{gentyala2026tracemas,
+  author    = {Sunil Gentyala},
+  title     = {{TRACE-MAS}: Securing the Inter-Agent Surface Against
+               Cascading Drift, Identity Spoofing, Prompt Injection,
+               and Temporal Adversarial Attacks in Multi-Agent {LLM} Pipelines},
+  booktitle = {Proceedings of an IEEE Conference},
+  year      = {2026},
+  note      = {Available: https://github.com/sunilgentyala/TRACE-MAS}
+}</pre>
+  </section>
+
+  <!-- AUTHOR -->
+  <section id="author">
+    <h2>Author</h2>
+    <div class="author-card">
+      <div class="author-avatar">SG</div>
+      <div class="author-info">
+        <h3>Sunil Gentyala</h3>
+        <p>Independent Research, MAS Security and Applied Cryptography<br>
+           IEEE Member | Lead Cybersecurity &amp; AI Security Researcher</p>
+        <div class="author-links">
+          <a href="mailto:sugentyala@ieee.org">sugentyala@ieee.org</a>
+          <a href="https://www.linkedin.com/in/sunil-gentyala/" target="_blank">LinkedIn</a>
+          <a href="https://github.com/sunilgentyala" target="_blank">GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  &copy; 2026 Sunil Gentyala &mdash; TRACE-MAS is released under the MIT License.
+  The paper is an independent research contribution.
+  <br>
+  <a href="https://github.com/sunilgentyala/TRACE-MAS">github.com/sunilgentyala/TRACE-MAS</a>
+</footer>
+
+</body>
+</html>

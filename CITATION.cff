@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use TRACE-MAS in your research, please cite as below."
+type: software
+title: "TRACE-MAS: Securing the Inter-Agent Surface in Multi-Agent LLM Pipelines"
+abstract: >
+  TRACE-MAS (Tri-vector Resilient Algorithm for Cooperative Embodied Multi-Agent Security)
+  is a unified theoretical framework that closes four structural security gaps on the
+  inter-agent surface of multi-agent LLM pipelines: cascading alignment drift, identity
+  spoofing, cross-agent prompt injection, and temporal adversarial attacks.
+authors:
+  - family-names: Gentyala
+    given-names: Sunil
+    email: sugentyala@ieee.org
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+repository-code: "https://github.com/sunilgentyala/TRACE-MAS"
+url: "https://sunilgentyala.github.io/TRACE-MAS/"
+license: MIT
+date-released: "2026-06-11"
+keywords:
+  - multi-agent systems
+  - LLM security
+  - zero-knowledge proofs
+  - prompt injection
+  - alignment drift
+  - temporal adversarial attacks
+  - agentic AI
+  - cryptographic frameworks
