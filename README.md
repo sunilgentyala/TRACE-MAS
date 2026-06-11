@@ -4,7 +4,7 @@
 
 [![IEEE](https://img.shields.io/badge/Venue-IEEE%20Conference-blue)](https://github.com/sunilgentyala/TRACE-MAS)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![arXiv](https://img.shields.io/badge/Paper-TRACE--MAS-orange)](https://github.com/sunilgentyala/TRACE-MAS/blob/main/paper/MAS_Complexity_Gaps_TRACE_v3.tex)
+[![Paper](https://img.shields.io/badge/Paper-Under%20Submission-orange)](https://github.com/sunilgentyala/TRACE-MAS)
 [![GitHub Pages](https://img.shields.io/badge/Website-Live-brightgreen)](https://sunilgentyala.github.io/TRACE-MAS/)
 
 ---
