@@ -3,8 +3,9 @@
 **Tri-vector Resilient Algorithm for Cooperative Embodied Multi-Agent Security**
 
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-25%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-26%20passing-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
+[![Validation](https://img.shields.io/badge/Validation-24%2C300%20trials-blueviolet)](experiments/RESULTS.md)
 [![Research](https://img.shields.io/badge/Research-Under%20Submission-orange)](https://github.com/sunilgentyala/TRACE-MAS)
 [![Website](https://img.shields.io/badge/Website-Live-brightgreen)](https://sunilgentyala.github.io/TRACE-MAS/)
 
@@ -71,6 +72,28 @@ ADVERSARIAL RUN: Prompt Injection Attack
 
 ---
 
+## Validation Results
+
+24,300 trials across four experiment families, run against this reference
+implementation. Full tables and methodology: **[experiments/RESULTS.md](experiments/RESULTS.md)**.
+
+| Experiment | Headline result |
+|---|---|
+| Drift envelope (Theorem 1) | Empirical drift flat from n=5 to n=200 agents; 100% of 3,000 trials within the analytic bound, with 3.4x-5.3x headroom |
+| Attestation gate (Theorem 2) | 100% spoofing detection, 0% false positives on benign traffic, 100% injection detection after a discovered scorer evasion was patched |
+| Temporal detector (Theorem 3) | 0% empirical miss rate across 6,000 trials, including a near-threshold "stealth" attack budget |
+| Per-round overhead | 423 &micro;s mean (reference-implementation logic only) |
+
+Validation surfaced and fixed a real evasion vector: the behavioral scorer's
+keyword matcher used exact token equality, letting `eval(malicious_payload)` slip past
+a rule for `eval(`. Fixed by switching to substring matching — see
+[RESULTS.md](experiments/RESULTS.md#2-attestation-gate-detection-performance-theorem-2)
+and the regression test in `tests/test_attestation.py`.
+
+Reproduce: `python experiments/validation_suite.py`
+
+---
+
 ## Repository Structure
 
 ```
@@ -80,9 +103,13 @@ TRACE-MAS/
 │   ├── attestation.py   # Phase 1: ZKP gate, SpoofAlarm, InjectionAlarm
 │   ├── temporal.py      # Phase 3: KL-window monitor, TemporalAlarm
 │   └── runtime.py       # Unified TraceMASRuntime
-├── tests/               # 25 tests covering all three security phases
+├── tests/               # 26 tests covering all three security phases
 ├── examples/
 │   └── pipeline_demo.py # Benign + adversarial 3-agent demo
+├── experiments/
+│   ├── validation_suite.py  # 24,300-trial empirical validation campaign
+│   ├── results.json         # Raw output
+│   └── RESULTS.md            # Tables, discussion, threats to validity
 ├── docs/                # GitHub Pages website
 ├── CITATION.cff
 └── pyproject.toml
@@ -94,10 +121,10 @@ TRACE-MAS/
 
 ```bash
 python -m pytest tests/ -v
-# 25 passed
+# 26 passed
 ```
 
-Covers: drift bound correctness, theorem envelope independence of chain length, spoofing rejection, injection detection, temporal alarm under distributional shift.
+Covers: drift bound correctness, theorem envelope independence of chain length, spoofing rejection, injection detection (including the patched evasion), temporal alarm under distributional shift.
 
 ---
 

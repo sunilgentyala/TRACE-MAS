@@ -1,0 +1,234 @@
+{
+  "drift": {
+    "params": {
+      "rho": 0.05,
+      "epsilon": 0.02,
+      "gamma_min": 0.3,
+      "lambda": 0.7,
+      "theoretical_envelope": 0.09666666666666665,
+      "n_trials": 500
+    },
+    "by_chain_length": [
+      {
+        "n": 5,
+        "empirical_max_drift_mean": 0.018254338047391686,
+        "empirical_max_drift_p95": 0.02410990183175044,
+        "empirical_max_drift_max": 0.03035853218597804,
+        "theoretical_envelope": 0.09666666666666665,
+        "naive_unprotected_bound": 0.1,
+        "pct_trials_within_envelope": 100.0
+      },
+      {
+        "n": 10,
+        "empirical_max_drift_mean": 0.021212000620634244,
+        "empirical_max_drift_p95": 0.026341906615840894,
+        "empirical_max_drift_max": 0.03129136468481612,
+        "theoretical_envelope": 0.09666666666666665,
+        "naive_unprotected_bound": 0.2,
+        "pct_trials_within_envelope": 100.0
+      },
+      {
+        "n": 25,
+        "empirical_max_drift_mean": 0.023653911692913348,
+        "empirical_max_drift_p95": 0.028177345341380427,
+        "empirical_max_drift_max": 0.03485108577877711,
+        "theoretical_envelope": 0.09666666666666665,
+        "naive_unprotected_bound": 0.5,
+        "pct_trials_within_envelope": 100.0
+      },
+      {
+        "n": 50,
+        "empirical_max_drift_mean": 0.025285134824754755,
+        "empirical_max_drift_p95": 0.029675211377089894,
+        "empirical_max_drift_max": 0.034355010407563655,
+        "theoretical_envelope": 0.09666666666666665,
+        "naive_unprotected_bound": 1.0,
+        "pct_trials_within_envelope": 100.0
+      },
+      {
+        "n": 100,
+        "empirical_max_drift_mean": 0.02661889349140744,
+        "empirical_max_drift_p95": 0.030169802316288265,
+        "empirical_max_drift_max": 0.0337096819866199,
+        "theoretical_envelope": 0.09666666666666665,
+        "naive_unprotected_bound": 2.0,
+        "pct_trials_within_envelope": 100.0
+      },
+      {
+        "n": 200,
+        "empirical_max_drift_mean": 0.02803373159894485,
+        "empirical_max_drift_p95": 0.03153434388165777,
+        "empirical_max_drift_max": 0.03715291836278033,
+        "theoretical_envelope": 0.09666666666666665,
+        "naive_unprotected_bound": 4.0,
+        "pct_trials_within_envelope": 100.0
+      }
+    ]
+  },
+  "attestation": {
+    "n_trials": 1000,
+    "false_positive_rate_benign_pct": 0.0,
+    "spoof_detection_rate_pct": 100.0,
+    "injection_detection_rate_prefix_pct": 75.0,
+    "injection_detection_rate_current_pct": 100.0,
+    "replay_attack_caught": true,
+    "evasion_finding": "Pre-fix scorer used exact whitespace-token-set intersection for forbidden keywords. Payload 'eval(malicious_payload) system(cat /etc/passwd)' scored 0.500 against threshold 0.400 and evaded detection because 'eval(malicious_payload)' as a single token != 'eval(' in the forbidden set. Fixed in attestation.py by matching forbidden markers as substrings of the lowercased message instead of exact tokens (see behavioral_score())."
+  },
+  "temporal": {
+    "nu": 0.02,
+    "sigma": 0.05,
+    "n_trials": 300,
+    "results": [
+      {
+        "budget": "stealth",
+        "phi_B": 0.03,
+        "window": 5,
+        "theoretical_miss_bound": 0.9048374180359596,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "stealth",
+        "phi_B": 0.03,
+        "window": 10,
+        "theoretical_miss_bound": 0.8187307530779819,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "stealth",
+        "phi_B": 0.03,
+        "window": 20,
+        "theoretical_miss_bound": 0.6703200460356394,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "stealth",
+        "phi_B": 0.03,
+        "window": 40,
+        "theoretical_miss_bound": 0.44932896411722184,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "stealth",
+        "phi_B": 0.03,
+        "window": 80,
+        "theoretical_miss_bound": 0.2018965179946556,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "low",
+        "phi_B": 0.05,
+        "window": 5,
+        "theoretical_miss_bound": 0.40656965974059917,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "low",
+        "phi_B": 0.05,
+        "window": 10,
+        "theoretical_miss_bound": 0.16529888822158656,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "low",
+        "phi_B": 0.05,
+        "window": 20,
+        "theoretical_miss_bound": 0.02732372244729257,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "low",
+        "phi_B": 0.05,
+        "window": 40,
+        "theoretical_miss_bound": 0.0007465858083766799,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "low",
+        "phi_B": 0.05,
+        "window": 80,
+        "theoretical_miss_bound": 5.573903692694606e-07,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "medium",
+        "phi_B": 0.1,
+        "window": 5,
+        "theoretical_miss_bound": 0.001661557273173937,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "medium",
+        "phi_B": 0.1,
+        "window": 10,
+        "theoretical_miss_bound": 2.760772572037209e-06,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "medium",
+        "phi_B": 0.1,
+        "window": 20,
+        "theoretical_miss_bound": 7.621865194512944e-12,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "medium",
+        "phi_B": 0.1,
+        "window": 40,
+        "theoretical_miss_bound": 5.809282904332784e-23,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "medium",
+        "phi_B": 0.1,
+        "window": 80,
+        "theoretical_miss_bound": 3.374776786257315e-45,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "high",
+        "phi_B": 0.2,
+        "window": 5,
+        "theoretical_miss_bound": 8.489044033871777e-15,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "high",
+        "phi_B": 0.2,
+        "window": 10,
+        "theoretical_miss_bound": 7.206386860901402e-29,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "high",
+        "phi_B": 0.2,
+        "window": 20,
+        "theoretical_miss_bound": 5.193201158897235e-57,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "high",
+        "phi_B": 0.2,
+        "window": 40,
+        "theoretical_miss_bound": 2.696933827677159e-113,
+        "empirical_miss_rate": 0.0
+      },
+      {
+        "budget": "high",
+        "phi_B": 0.2,
+        "window": 80,
+        "theoretical_miss_bound": 7.273452070869372e-226,
+        "empirical_miss_rate": 0.0
+      }
+    ]
+  },
+  "overhead": {
+    "dim": 1536,
+    "n_rounds": 2000,
+    "mean_us": 423.27555041993037,
+    "p50_us": 403.700047172606,
+    "p95_us": 621.5149653144181,
+    "p99_us": 823.0350958183408,
+    "max_us": 1535.9999379143119,
+    "note": "Reference-implementation logic overhead (HMAC attestation stand-in + drift correction + KL temporal check). Excludes real zk-SNARK proving; see README for Groth16/PLONK literature figures."
+  }
+}

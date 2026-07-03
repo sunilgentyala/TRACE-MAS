@@ -4,8 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TRACE-MAS | Multi-Agent LLM Pipeline Security</title>
-  <meta name="description" content="TRACE-MAS: Open-source Python implementation securing multi-agent LLM pipelines against drift, spoofing, prompt injection, and temporal attacks." />
+  <meta name="description" content="TRACE-MAS: Open-source Python implementation securing multi-agent LLM pipelines against drift, spoofing, prompt injection, and temporal attacks. Validated across 24,300 trials." />
   <meta name="author" content="Sunil Gentyala" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230d1117%22/%3E%3Cpath%20d%3D%22M32%206%20L54%2014%20V30%20C54%2045%2044%2055%2032%2060%20C20%2055%2010%2045%2010%2030%20V14%20Z%22%20fill%3D%22none%22%20stroke%3D%22%2358a6ff%22%20stroke-width%3D%224%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M22%2032%20L29%2039%20L43%2024%22%20fill%3D%22none%22%20stroke%3D%22%233fb950%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E" />
   <style>
     :root {
       --bg: #0d1117;
@@ -156,6 +157,27 @@
     .author-links { display: flex; gap: 0.8rem; flex-wrap: wrap; }
     .author-links a { font-size: 0.82rem; color: var(--accent); }
 
+    .results-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 1rem 0 1.5rem; }
+    .results-table th, .results-table td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); }
+    .results-table th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .results-table td { color: #c9d1d9; }
+    .results-table tr:last-child td { border-bottom: none; }
+    .results-wrap { overflow-x: auto; }
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
+    @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr 1fr; } }
+    .stat-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem; text-align: center;
+    }
+    .stat-box .stat-num { font-size: 1.5rem; font-weight: 800; color: var(--accent2); }
+    .stat-box .stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+    .callout {
+      background: rgba(247,129,102,0.08); border: 1px solid var(--accent3);
+      border-radius: 8px; padding: 1rem 1.2rem; font-size: 0.87rem; color: #c9d1d9;
+      margin: 1rem 0;
+    }
+    .callout strong { color: var(--accent3); }
+
     footer {
       text-align: center; padding: 2rem;
       border-top: 1px solid var(--border);
@@ -169,6 +191,7 @@
   <span class="logo">TRACE-MAS</span>
   <a href="#problem">Problem</a>
   <a href="#implementation">Code</a>
+  <a href="#results">Results</a>
   <a href="#algorithm">Algorithm</a>
   <a href="https://github.com/sunilgentyala/TRACE-MAS" target="_blank">GitHub</a>
 </nav>
@@ -181,7 +204,8 @@
   </p>
   <div class="badges">
     <span class="badge badge-blue">Python 3.10+</span>
-    <span class="badge badge-green">25 Tests Passing</span>
+    <span class="badge badge-green">26 Tests Passing</span>
+    <span class="badge badge-green">24,300 Validation Trials</span>
     <span class="badge badge-red">4 Attack Vectors</span>
     <span class="badge badge-blue">Research Under Submission</span>
   </div>
@@ -258,14 +282,15 @@
 &#9474;   &#9500;&#9472;&#9472; attestation.py   <span class="comment"># Theorem 2: ZKP gate, SpoofAlarm, InjectionAlarm</span>
 &#9474;   &#9500;&#9472;&#9472; temporal.py      <span class="comment"># Theorem 3: KL-window monitor, TemporalAlarm</span>
 &#9474;   &#9492;&#9472;&#9472; runtime.py       <span class="comment"># Unified TraceMASRuntime (Algorithm 1)</span>
-&#9500;&#9472;&#9472; <span class="dir">tests/</span>           <span class="comment"># 25 tests: theorem coverage + adversarial cases</span>
+&#9500;&#9472;&#9472; <span class="dir">tests/</span>           <span class="comment"># 26 tests: theorem coverage + adversarial cases</span>
 &#9492;&#9472;&#9472; <span class="dir">examples/</span>
     &#9492;&#9472;&#9472; pipeline_demo.py <span class="comment"># 3-agent benign + injection attack demo</span>
     </div>
 
     <h3>Quick Start</h3>
     <pre>pip install -e ".[dev]"
-python -m pytest tests/          # 25 tests, all pass
+python -m pytest tests/          # 26 tests, all pass
+python experiments/validation_suite.py  # 24,300-trial validation
 python examples/pipeline_demo.py # benign run + adversarial demo</pre>
 
     <h3>Demo Output</h3>
@@ -290,6 +315,63 @@ config = TraceMASConfig(
 )
 runtime = TraceMASRuntime(config, agents, verifier_fn, alpha_0)
 trajectory = runtime.run(T=10)   # raises DriftAlarm / SpoofAlarm / TemporalAlarm on attack</pre>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results">
+    <h2>Empirical Validation</h2>
+    <p>
+      24,300 trials across four experiment families, run against this reference
+      implementation, validating each theorem's qualitative prediction.
+      Full tables and methodology: <a href="https://github.com/sunilgentyala/TRACE-MAS/blob/main/experiments/RESULTS.md" target="_blank">experiments/RESULTS.md</a>.
+    </p>
+
+    <div class="stat-row">
+      <div class="stat-box"><div class="stat-num">100%</div><div class="stat-label">of 3,000 drift trials stayed within the Theorem 1 envelope</div></div>
+      <div class="stat-box"><div class="stat-num">100%</div><div class="stat-label">spoofing detection, 0% false positives on benign traffic</div></div>
+      <div class="stat-box"><div class="stat-num">0%</div><div class="stat-label">empirical miss rate across 6,000 temporal-attack trials</div></div>
+      <div class="stat-box"><div class="stat-num">423&micro;s</div><div class="stat-label">mean per-round logic overhead at d=1,536</div></div>
+    </div>
+
+    <h3>Drift-envelope validation (Theorem 1)</h3>
+    <p>Empirical max drift stays flat across a 40&times; increase in chain length, while the naive unprotected bound grows linearly.</p>
+    <div class="results-wrap">
+    <table class="results-table">
+      <tr><th>n (agents)</th><th>Empirical max drift</th><th>Analytic envelope</th><th>Naive unprotected bound</th></tr>
+      <tr><td>5</td><td>0.0183</td><td>0.0967</td><td>0.10</td></tr>
+      <tr><td>25</td><td>0.0237</td><td>0.0967</td><td>0.50</td></tr>
+      <tr><td>100</td><td>0.0266</td><td>0.0967</td><td>2.00</td></tr>
+      <tr><td>200</td><td>0.0280</td><td>0.0967</td><td>4.00</td></tr>
+    </table>
+    </div>
+
+    <h3>Attestation gate detection (Theorem 2)</h3>
+    <div class="results-wrap">
+    <table class="results-table">
+      <tr><th>Traffic class</th><th>Detection / FP rate</th></tr>
+      <tr><td>Benign (false positives)</td><td>0.0%</td></tr>
+      <tr><td>Forged signature (spoofing)</td><td>100.0%</td></tr>
+      <tr><td>Prompt injection &mdash; pre-fix scorer</td><td>75.0%</td></tr>
+      <tr><td>Prompt injection &mdash; current scorer</td><td>100.0%</td></tr>
+      <tr><td>Replay</td><td>Caught</td></tr>
+    </table>
+    </div>
+    <div class="callout">
+      <strong>Discovered evasion, now fixed:</strong> the pre-fix behavioral scorer matched
+      forbidden keywords via exact token equality, so <code>eval(malicious_payload)</code>
+      slipped past a rule for <code>eval(</code>. Since token boundaries are attacker-controlled,
+      this was a real evasion vector. Fixed by switching to substring matching in
+      <code>attestation.py</code>; regression test in <code>tests/test_attestation.py</code>.
+    </div>
+
+    <h3>Temporal detector (Theorem 3)</h3>
+    <p>
+      0% empirical miss rate across all 6,000 trials, including a near-threshold
+      &ldquo;stealth&rdquo; budget where Theorem 3&rsquo;s own worst-case bound concedes up to
+      90.5% miss probability at the smallest window &mdash; the KL-divergence detector performs
+      strictly better than the proven floor here. This confirms the bound holds; it does not
+      by itself confirm the bound is tight (see RESULTS.md for the full discussion).
+    </p>
   </section>
 
   <!-- ALGORITHM -->

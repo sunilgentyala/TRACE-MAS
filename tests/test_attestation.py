@@ -103,3 +103,17 @@ class TestPromptInjectionDetection:
         low_tau = gate.dynamic_threshold(0.0)
         high_tau = gate.dynamic_threshold(50.0)
         assert high_tau > low_tau + 1.0
+
+    def test_substring_adjacent_keyword_is_caught(self):
+        """
+        Regression test for a discovered evasion: forbidden markers immediately
+        followed by other characters (e.g. "eval(malicious_payload)") must still
+        be caught. An earlier version of behavioral_score() matched forbidden
+        keywords via exact whitespace-token-set intersection, so this exact
+        payload scored 0.5 (above a 0.4 threshold) and evaded detection.
+        """
+        gate = AgentAttestationGate(tau_0=0.4, kappa=0.1)
+        attest = make_attestation("coder_agent", "task", POLICY, SECRET)
+        payload = "eval(malicious_payload) system(cat /etc/passwd)"
+        with pytest.raises(InjectionAlarm):
+            gate.verify(attest, SECRET, payload, risk_score=0.0)

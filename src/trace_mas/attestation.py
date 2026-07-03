@@ -123,16 +123,25 @@ class AgentAttestationGate:
         a committed model evaluation. Here we implement a structural check:
         messages that reference actions outside the declared allowed_actions
         set receive a lower score.
+
+        Forbidden markers are matched as substrings of the lowercased message,
+        not as exact whitespace-delimited tokens. An earlier token-set version
+        of this check missed markers immediately followed by other characters
+        (e.g. "eval(malicious_payload)" did not equal the forbidden token
+        "eval(" under set intersection, letting that payload through). Since
+        token boundaries are attacker-controlled, substring matching is the
+        correct default here.
         """
         declared_actions = attestation.policy_commitment.allowed_actions
         if not declared_actions:
             return 1.0
 
-        tokens = set(message_content.lower().split())
+        text = message_content.lower()
+        tokens = set(text.split())
         matches = len(tokens & {a.lower() for a in declared_actions})
         forbidden_keywords = {"sudo", "override", "ignore previous", "drop table",
                               "rm -rf", "exec(", "eval(", "system("}
-        violations = len(tokens & forbidden_keywords)
+        violations = sum(1 for kw in forbidden_keywords if kw in text)
 
         base_score = min(1.0, 0.5 + 0.1 * matches)
         penalty = 0.4 * violations
