@@ -101,6 +101,143 @@ the tens-to-hundreds-of-milliseconds round-trip time of an actual inter-agent LL
 and the ~22 ms Groth16 proof-generation cost it would sit alongside in a full
 deployment.
 
+## 5. Advanced attack scenarios (jailbreak, indirect injection, malicious tool
+##    invocation, compromised verifier quorum)
+
+Reproducible via `python experiments/validation_suite_ext.py` (raw output:
+`experiments/results_ext.json`). Extends the four families above with attack
+classes reviewers specifically asked to see covered.
+
+### 5a. Jailbreak-style payloads
+
+1,000 trials, four role-override / "DAN-style" / hypothetical-framing payload
+templates against the attestation gate (tau_0=0.4, kappa=0.1).
+
+| Traffic class | Detection rate |
+|---|---:|
+| Jailbreak-style payloads | 100.0% |
+
+Jailbreak framing does not evade the gate because a jailbreak still has to ask
+the agent to do something outside its declared policy (override, sudo, eval(,
+system() to be useful to an attacker; the gate flags the requested action, not
+the persona or tone wrapped around it. A jailbreak that only asks for
+already-declared actions is indistinguishable from a benign message to this
+scorer, a limitation we state directly rather than paper over.
+
+### 5b. Indirect prompt injection
+
+1,000 trials. The injected directive is placed inside a retrieved-document or
+tool-output snippet concatenated into the agent's own outgoing message, rather
+than sent directly to the agent, the defining property of indirect injection.
+
+| Traffic class | Detection rate |
+|---|---:|
+| Indirect injection via tool/document content | 100.0% |
+
+The gate scores the emitted message regardless of where its content
+originated, so an indirect injection is caught once it surfaces in an
+outgoing message. An indirect injection that is absorbed into an agent's
+internal state without ever producing a policy-inconsistent outgoing message
+is out of scope for this mechanism and instead falls to the temporal monitor
+if it manifests as a memory-distribution shift (Theorem 3).
+
+### 5c. Malicious tool invocation, and a second discovered evasion (now fixed)
+
+1,000 trials. Payloads request a plausible but undeclared action ("transfer
+funds", "delete database", "exfiltrate customer data") that matches no fixed
+forbidden keyword and references no declared allowed_action.
+
+| Scorer variant | Detection rate |
+|---|---:|
+| Original scorer (keyword denylist only) | 0.0% |
+| Current scorer (+ undeclared-action check) | 100.0% |
+
+**Finding.** The original scorer scores an unrecognized-but-unforbidden action
+request at the neutral base value (0.5), which clears a 0.4-0.6 threshold
+regardless of how far outside the agent's declared role the action falls,
+because neither the declared-action match bonus nor the fixed keyword penalty
+applies to it. This is a second, independent evasion class from the one
+reported above, not a variant of it: the earlier evasion exploited token
+boundaries around a *forbidden* marker; this one exploits the absence of any
+default-deny check for *undeclared* actions at all.
+
+**Fix** (see `src/trace_mas/attestation.py::behavioral_score`): any
+snake_case action-shaped token in the message that is not a member of the
+policy's declared `allowed_actions` is now treated as a default-deny signal
+and penalized. Detection rose from 0.0% to 100.0% with no change to the
+benign false-positive rate. Regression tests:
+`tests/test_attestation.py::TestMaliciousToolInvocation`.
+
+### 5d. Compromised / colluding verifier quorum
+
+300 trials per configuration, K=7-verifier quorum, honest residual rho=0.05,
+comparing naive mean aggregation against a coordinate-wise trimmed mean that
+discards the 2 most extreme per-coordinate verifier outputs before averaging.
+
+| Aggregation | f colluding (of 7) | Mean achieved rho | % within 1.5x honest bound |
+|---|---:|---:|---:|
+| mean | 0 | 0.0105 | 100% |
+| mean | 1 | 0.2859 | 0% |
+| mean | 2 | 0.5713 | 0% |
+| mean | 3 | 0.8572 | 0% |
+| trimmed_mean (trim=2) | 0 | 0.0097 | 100% |
+| trimmed_mean (trim=2) | 1 | 0.0109 | 100% |
+| trimmed_mean (trim=2) | 2 | 0.0128 | 100% |
+| trimmed_mean (trim=2) | 3 | 0.4000 | 0% |
+
+**Takeaway:** naive mean aggregation degrades roughly linearly in the
+colluding fraction, since each colluding output pulls the mean by weight 1/K.
+Trimmed-mean aggregation holds the achieved residual near the honest bound
+exactly through f=2 colluding verifiers (the trim budget) and then fails once
+the colluding count exceeds it, the classical breakdown-point behavior of
+trimmed estimators. This empirically grounds Section V-D's claim that
+verifier-quorum robustness is a parameter to be set from an explicit bound on
+the colluding fraction, not an assumption to leave implicit.
+
+### 5e. Scalability: latency, memory, and throughput vs. pipeline size
+
+200 rounds per configuration, d=1,536, pipeline sizes n in {1, 3, 5, 10, 20, 50}.
+
+| n agents | Mean round latency | Per-agent latency | Peak memory | Throughput (handoffs/s) |
+|---:|---:|---:|---:|---:|
+| 1  | 1,690 us | 1,690 us | 287 KB  | 591 |
+| 3  | 2,073 us | 691 us   | 338 KB  | 1,445 |
+| 5  | 2,448 us | 490 us   | 446 KB  | 2,040 |
+| 10 | 3,532 us | 353 us   | 486 KB  | 2,828 |
+| 20 | 5,853 us | 293 us   | 744 KB  | 3,415 |
+| 50 | 12,238 us| 245 us   | 1,490 KB| 4,084 |
+
+**Takeaway:** total round latency grows roughly linearly with pipeline size,
+as expected since each additional agent adds one independent attestation and
+drift check; the fairer per-agent figure is flat-to-decreasing (fixed
+per-round setup cost amortizes over more agents), evidence that TRACE-MAS
+does not introduce super-linear coordination overhead as pipelines scale.
+Peak memory grows sub-linearly (about 5.2x for a 50x increase in agent
+count). Aggregate handoff throughput exceeds 4,000/s at n=50 on commodity
+hardware for the reference implementation's logic path; this excludes real
+zk-SNARK proof generation/verification and inter-agent network round-trip
+time, both of which dominate end-to-end latency in a production deployment
+(see paper Section IV-A, IV-C).
+
+## 6. Platform integration: a real LangGraph verifier node
+
+`examples/langgraph_integration.py` wires TRACE-MAS into an actual
+`langgraph.graph.StateGraph` as a verifier node between three agent nodes
+(coder -> qa -> deploy), matching the verifier-sidecar architecture in
+Section IV-B. No model API key is required; the agent nodes are stand-ins for
+LLM calls so the graph wiring and security gating run end to end offline.
+
+Running it twice confirms both directions: a benign three-agent run completes
+to the `deploy_agent` step with an unbroken certified history, and a second
+run in which the QA agent's outgoing message carries an indirect-injection
+payload (simulating a poisoned tool result) is quarantined at the verifier
+node with `InjectionAlarm: agent 'qa_agent' behavioral score 0.000 <
+threshold 0.400`, before ever reaching the deploy agent. Swapping each agent
+node's body for a real chat-model call does not change the verifier node,
+the graph topology, or this result, which is the intended integration
+property: TRACE-MAS composes with LangGraph's existing node/edge model with
+no changes to LangGraph itself.
+
 ## Threats to validity
 
 1. HMAC-SHA256 stands in for the ZKP layer of Definition 3 — this validates protocol

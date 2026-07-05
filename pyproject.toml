@@ -28,6 +28,7 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "numpy>=1.24"]
+examples = ["langgraph>=0.2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

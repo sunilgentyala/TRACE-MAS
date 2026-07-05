@@ -3,9 +3,9 @@
 **Tri-vector Resilient Algorithm for Cooperative Embodied Multi-Agent Security**
 
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-26%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-28%20passing-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
-[![Validation](https://img.shields.io/badge/Validation-24%2C300%20trials-blueviolet)](experiments/RESULTS.md)
+[![Validation](https://img.shields.io/badge/Validation-24%2C300%2B%20trials-blueviolet)](experiments/RESULTS.md)
 [![Research](https://img.shields.io/badge/Research-Under%20Submission-orange)](https://github.com/sunilgentyala/TRACE-MAS)
 [![Website](https://img.shields.io/badge/Website-Live-brightgreen)](https://sunilgentyala.github.io/TRACE-MAS/)
 
@@ -66,15 +66,20 @@ BENIGN PIPELINE RUN (3 agents, 5 rounds)
   STATUS: PASSED
 
 ADVERSARIAL RUN: Prompt Injection Attack
-  CAUGHT: InjectionAlarm — behavioral score 0.10 < threshold 0.40
+  CAUGHT: InjectionAlarm - behavioral score 0.10 < threshold 0.40
   STATUS: BLOCKED
 ```
+
+Also runs as a real [LangGraph](https://github.com/langchain-ai/langgraph) graph,
+not just a standalone loop: `python examples/langgraph_integration.py` wires
+the same gate in as a verifier node between three agent nodes and shows it
+quarantining an indirect-injection payload mid-pipeline.
 
 ---
 
 ## Validation Results
 
-24,300 trials across four experiment families, run against this reference
+24,300+ trials across nine experiment families, run against this reference
 implementation. Full tables and methodology: **[experiments/RESULTS.md](experiments/RESULTS.md)**.
 
 | Experiment | Headline result |
@@ -83,14 +88,21 @@ implementation. Full tables and methodology: **[experiments/RESULTS.md](experime
 | Attestation gate (Theorem 2) | 100% spoofing detection, 0% false positives on benign traffic, 100% injection detection after a discovered scorer evasion was patched |
 | Temporal detector (Theorem 3) | 0% empirical miss rate across 6,000 trials, including a near-threshold "stealth" attack budget |
 | Per-round overhead | 423 &micro;s mean (reference-implementation logic only) |
+| Jailbreak / indirect injection | 100% detection, 1,000 trials each |
+| Malicious tool invocation | 0% -> 100% detection after a second discovered evasion was patched (undeclared-action default-deny check) |
+| Compromised verifier quorum | Trimmed-mean aggregation holds the drift bound through 2-of-7 colluding verifiers; naive mean fails at 1-of-7 |
+| Scalability (1-50 agents) | Per-agent latency flat-to-decreasing, memory sub-linear, >4,000 handoffs/s at n=50 |
 
-Validation surfaced and fixed a real evasion vector: the behavioral scorer's
+Validation surfaced and fixed two real evasion vectors, both patched with
+regression tests in `tests/test_attestation.py`: (1) the behavioral scorer's
 keyword matcher used exact token equality, letting `eval(malicious_payload)` slip past
-a rule for `eval(`. Fixed by switching to substring matching — see
-[RESULTS.md](experiments/RESULTS.md#2-attestation-gate-detection-performance-theorem-2)
-and the regression test in `tests/test_attestation.py`.
+a rule for `eval(`, fixed by switching to substring matching; (2) messages
+naming a plausible but undeclared action (a malicious tool invocation) scored
+above threshold because no default-deny check existed for actions outside the
+declared policy, fixed by flagging undeclared snake_case action tokens. Full
+writeup: [RESULTS.md](experiments/RESULTS.md).
 
-Reproduce: `python experiments/validation_suite.py`
+Reproduce: `python experiments/validation_suite.py && python experiments/validation_suite_ext.py`
 
 ---
 
@@ -103,13 +115,15 @@ TRACE-MAS/
 │   ├── attestation.py   # Phase 1: ZKP gate, SpoofAlarm, InjectionAlarm
 │   ├── temporal.py      # Phase 3: KL-window monitor, TemporalAlarm
 │   └── runtime.py       # Unified TraceMASRuntime
-├── tests/               # 26 tests covering all three security phases
+├── tests/               # 28 tests covering all three security phases
 ├── examples/
-│   └── pipeline_demo.py # Benign + adversarial 3-agent demo
+│   ├── pipeline_demo.py         # Benign + adversarial 3-agent demo
+│   └── langgraph_integration.py # Real LangGraph verifier-node integration
 ├── experiments/
-│   ├── validation_suite.py  # 24,300-trial empirical validation campaign
-│   ├── results.json         # Raw output
-│   └── RESULTS.md            # Tables, discussion, threats to validity
+│   ├── validation_suite.py     # 24,300-trial core validation campaign
+│   ├── validation_suite_ext.py # Advanced attacks + scalability, extended suite
+│   ├── results.json / results_ext.json  # Raw output
+│   └── RESULTS.md              # Tables, discussion, threats to validity
 ├── docs/                # GitHub Pages website
 ├── CITATION.cff
 └── pyproject.toml
@@ -121,7 +135,7 @@ TRACE-MAS/
 
 ```bash
 python -m pytest tests/ -v
-# 26 passed
+# 28 passed
 ```
 
 Covers: drift bound correctness, theorem envelope independence of chain length, spoofing rejection, injection detection (including the patched evasion), temporal alarm under distributional shift.
@@ -133,17 +147,17 @@ Covers: drift bound correctness, theorem envelope independence of chain length, 
 Each round of the runtime runs three sequential phases per agent:
 
 ```
-Phase 1 — Attestation Gate
+Phase 1: Attestation Gate
   Agent generates ZKP: π = Prove(key, message, policy_commit, history)
   Dynamic threshold: τ = τ₀ + κ·log(1 + risk_score)
   If Verify(π) fails or behavioral_score < τ → SpoofOrInjectAlarm
 
-Phase 2 — Drift Correction
+Phase 2: Drift Correction
   Verifier quorum produces reference signal ξ
   α_next = (1-γ)·agent_output + γ·ξ    [contractive aggregation]
   If ‖α_next - α₀‖ > δ* → DriftAlarm
 
-Phase 3 — Temporal Monitoring (per round)
+Phase 3: Temporal Monitoring (per round)
   I = sup KL(M^s1 ‖ M^s2) over sliding window
   If I > φ(B) → TemporalAlarm; rollback to last certified checkpoint
 ```

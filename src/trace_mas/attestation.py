@@ -15,16 +15,19 @@ from __future__ import annotations
 import hashlib
 import hmac
 import math
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+_ACTION_TOKEN_RE = re.compile(r"\b[a-z]+(?:_[a-z]+)+\b")
 
 
 class SpoofAlarm(Exception):
     """Raised when an agent fails ZKP verification (identity spoofing detected)."""
     def __init__(self, agent_id: str, reason: str):
         self.agent_id = agent_id
-        super().__init__(f"SpoofAlarm: agent '{agent_id}' rejected — {reason}")
+        super().__init__(f"SpoofAlarm: agent '{agent_id}' rejected - {reason}")
 
 
 class InjectionAlarm(Exception):
@@ -35,7 +38,7 @@ class InjectionAlarm(Exception):
         self.threshold = threshold
         super().__init__(
             f"InjectionAlarm: agent '{agent_id}' behavioral score {score:.3f} "
-            f"< threshold {threshold:.3f} — possible prompt injection"
+            f"< threshold {threshold:.3f} - possible prompt injection"
         )
 
 
@@ -131,6 +134,20 @@ class AgentAttestationGate:
         "eval(" under set intersection, letting that payload through). Since
         token boundaries are attacker-controlled, substring matching is the
         correct default here.
+
+        Out-of-policy action mentions are matched separately as a default-deny
+        check. Agent policies name actions with snake_case identifiers (e.g.
+        "write_code", "read_spec"); any snake_case-shaped token in the message
+        that is not a member of the declared allowed_actions set is treated as
+        a candidate undeclared action invocation and penalized, independent of
+        the fixed forbidden-keyword list. This was added after empirical
+        testing showed the keyword-only check does not flag malicious tool
+        invocations that name a plausible but undeclared action (e.g.
+        "transfer_funds", "delete_database") rather than a forbidden verb,
+        such a message previously scored above threshold because it matched no
+        keyword and referenced no declared action, so neither the match bonus
+        nor the keyword penalty applied to it. See attestation gate results in
+        experiments/RESULTS.md, section "Malicious tool invocation."
         """
         declared_actions = attestation.policy_commitment.allowed_actions
         if not declared_actions:
@@ -138,13 +155,18 @@ class AgentAttestationGate:
 
         text = message_content.lower()
         tokens = set(text.split())
-        matches = len(tokens & {a.lower() for a in declared_actions})
+        declared_lower = {a.lower() for a in declared_actions}
+        matches = len(tokens & declared_lower)
         forbidden_keywords = {"sudo", "override", "ignore previous", "drop table",
                               "rm -rf", "exec(", "eval(", "system("}
         violations = sum(1 for kw in forbidden_keywords if kw in text)
 
+        mentioned_actions = set(_ACTION_TOKEN_RE.findall(text))
+        undeclared_actions = mentioned_actions - declared_lower
+        undeclared_penalty = 0.4 * len(undeclared_actions)
+
         base_score = min(1.0, 0.5 + 0.1 * matches)
-        penalty = 0.4 * violations
+        penalty = 0.4 * violations + undeclared_penalty
         return max(0.0, base_score - penalty)
 
     def _check_replay(self, agent_id: str, timestamp: float) -> bool:
