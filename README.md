@@ -6,7 +6,7 @@
 [![Tests](https://img.shields.io/badge/Tests-28%20passing-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
 [![Validation](https://img.shields.io/badge/Validation-24%2C300%2B%20trials-blueviolet)](experiments/RESULTS.md)
-[![Research](https://img.shields.io/badge/Research-Under%20Submission-orange)](https://github.com/sunilgentyala/TRACE-MAS)
+[![Paper](https://img.shields.io/badge/Paper-Accepted%20ICSCSA%202026-blue)](#how-to-cite)
 [![Website](https://img.shields.io/badge/Website-Live-brightgreen)](https://sunilgentyala.github.io/TRACE-MAS/)
 
 Open-source Python implementation of a security layer for multi-agent LLM pipelines. Addresses four structural attack vectors at the inter-agent surface: cascading alignment drift, identity spoofing, cross-agent prompt injection, and temporal adversarial manipulation.
@@ -164,11 +164,32 @@ Phase 3: Temporal Monitoring (per round)
 
 ---
 
+## How to Cite
+
+TRACE-MAS is the reference implementation for the following accepted paper (IEEE Xplore DOI pending):
+
+```bibtex
+@inproceedings{gentyala2026tracemas,
+  title     = {A Unified Mathematical Framework for Secure Multi-Agent Large
+               Language Model Pipelines},
+  author    = {Gentyala, Sunil and Reddy, Y. Geetha and Pendyala, Manasa and Gatla, Vishnu and Manoj, Sundarigari and Shaik, Ruhisulthana},
+  booktitle = {2026 6th International Conference on Soft Computing for
+               Security Applications (ICSCSA)},
+  year      = {2026},
+  publisher = {IEEE},
+  note      = {Paper ICSCSA-168. Accepted; IEEE Xplore DOI pending}
+}
+```
+
+Machine-readable metadata is in [`CITATION.cff`](CITATION.cff); GitHub shows it under "Cite this repository".
+
+---
+
 ## Author
 
 **Sunil Gentyala**
 Independent Research, MAS Security and Applied Cryptography
-IEEE Member | sugentyala@ieee.org
+IEEE Senior Member | sunil.gentyala@ieee.org
 [LinkedIn](https://www.linkedin.com/in/sunil-gentyala/) | [GitHub](https://github.com/sunilgentyala)
 
 ---

@@ -8,10 +8,11 @@ abstract: >
   inter-agent surface of multi-agent LLM pipelines: cascading alignment drift, identity
   spoofing, cross-agent prompt injection, and temporal adversarial attacks.
 authors:
-  - family-names: Gentyala
-    given-names: Sunil
-    email: sugentyala@ieee.org
-    orcid: "https://orcid.org/0000-0000-0000-0000"
+- family-names: Gentyala
+  given-names: Sunil
+  affiliation: HCLTech (HCL America Inc.), Dallas, TX, USA
+  orcid: https://orcid.org/0009-0005-2642-3479
+  email: sunil.gentyala@ieee.org
 repository-code: "https://github.com/sunilgentyala/TRACE-MAS"
 url: "https://sunilgentyala.github.io/TRACE-MAS/"
 license: MIT
@@ -25,3 +26,29 @@ keywords:
   - temporal adversarial attacks
   - agentic AI
   - cryptographic frameworks
+preferred-citation:
+  type: conference-paper
+  title: A Unified Mathematical Framework for Secure Multi-Agent Large Language Model Pipelines
+  authors:
+  - family-names: Gentyala
+    given-names: Sunil
+    affiliation: HCLTech (HCL America Inc.), Dallas, TX, USA
+    orcid: https://orcid.org/0009-0005-2642-3479
+    email: sunil.gentyala@ieee.org
+  - family-names: Reddy
+    given-names: Y. Geetha
+  - family-names: Pendyala
+    given-names: Manasa
+  - family-names: Gatla
+    given-names: Vishnu
+  - family-names: Manoj
+    given-names: Sundarigari
+  - family-names: Shaik
+    given-names: Ruhisulthana
+  collection-title: 2026 6th International Conference on Soft Computing for Security Applications
+    (ICSCSA)
+  collection-type: proceedings
+  publisher:
+    name: IEEE
+  year: 2026
+  notes: Paper ICSCSA-168. Accepted; IEEE Xplore DOI pending.
